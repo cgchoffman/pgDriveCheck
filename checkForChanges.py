@@ -62,11 +62,13 @@ def main():
     
     if currentIds == archivedIds:
         message = "There have been no changes to you Google Drive since (previous date checked)"
-        print send_email(message)
+        #print send_email(message)
+        print (message)
         
     else:
-        message = generate_email_message(archivedState, archivedIds, currentState, currentIds)
-        print send_email(message)
+        message = generate_added_removed_message(archivedState, archivedIds, currentState, currentIds)
+        #print send_email(message)
+        print (message)
     
     #don't create the json file yet or else you overwrite the check file.
     #create_json_file_from_meta(service)
@@ -79,15 +81,7 @@ def get_id_set(jsonState):
             #currentIds[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
     return idSet
 
-def create_config_file():
-    # the "input" function of Python takes input and tries to eval it...No dice     
-    #print "Enter the email address for the report to be sent From.  Default is it@peacegeeks.org"
-    #
-    #    FROM = input("Enter the email address: ")
-    pass
-
-
-def generate_email_message(archivedState, archivedIds, currentState, currentIds):
+def generate_added_removed_message(archivedState, archivedIds, currentState, currentIds):
     removedIds = archivedIds.difference(currentIds)
     message     = "=== Files Removed ==="
     for file in archivedState:
@@ -105,7 +99,7 @@ def send_email(message):
     SERVER = "localhost"
     FROM = configDataJson["FROM"]
     
-    TO = configDataJson["TO"]
+    TO = configDataJson["TOREPORT"]
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
     SUBJECT = "PeaceGeeks Server - Google Drive Report"
@@ -121,6 +115,8 @@ def load_config_data():
 
     configDataJson = ""
     loadConfigFile = "config.json"
+    # Add Try that will start a create_config_file function
+    # if one doesn't exist.
     with open(loadConfigFile, 'r') as configData:
         configDataJson = json.loads(configData.read())
         configData.close()
