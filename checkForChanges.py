@@ -34,6 +34,28 @@ from apiclient import errors
 
 
 def main():
+    defaultRunLimit = 10
+    repeatSafety = 0
+    try:
+        runLimit = sys.argv[1]
+        try:
+            sys.argv[1] += 1
+        except TypeError:
+            print ("Passed in something other than a number as an option with the script.  Use a number please.")
+            print ("\"$ python %s 10\" \nwill run the %s script 10 times (it's actually more than that :)") %(sys.argv[0], sys.argv[0])
+            return 1
+    except IndexError:
+        print ("No run time loop limit given on script start.  Using default of %s") %defaultRunLimit
+        runLimit = defaultRunLimit
+    while (perform_check()):
+        if repeatSafety <= runLimit:
+            perform_check()
+            repeatSafety += 1
+        else:
+            print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
+            break
+
+def perform_check():
     # Retrieve current data from google drive
     credentials   = get_credentials()
     service       = get_service(credentials)
@@ -57,7 +79,7 @@ def main():
         print "Credentials State: %s" %(credentials != None)
         print "Current Meta Data: %s" %( currentIds != None)
         print "If they are all true and it's still failing, you might need to dig more."
-        return
+        return 1
     archivedIds   = get_id_set(archivedState)
     
     if currentIds == archivedIds:
@@ -71,7 +93,16 @@ def main():
         print (message)
     
     #don't create the json file yet or else you overwrite the check file.
-    #create_json_file_from_meta(service)
+    try:
+        create_json_file_from_meta(service)
+    except:
+        message = """Could not create new State file.
+                     Some how lost your internet connect between starting this script and now."""
+        #print send_email(message)
+        print (message)
+        return 1
+    
+    return 0
 
 def get_id_set(jsonState):
     idSet = set()
