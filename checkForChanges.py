@@ -37,8 +37,15 @@ def main():
     defaultRunLimit = 10
     repeatSafety = 0
     try:
+        configDataJson = load_config_data()
+    except:
+        print "There was an error loading the config file."
+        return
+    try:
+        # Check for args pass in when script was started or use default
         runLimit = sys.argv[1]
         try:
+            # Check that a number was passed in as an agruement and nothing else
             sys.argv[1] += 1
         except TypeError:
             print ("Passed in something other than a number as an option with the script.  Use a number please.")
@@ -47,6 +54,8 @@ def main():
     except IndexError:
         print ("No run time loop limit given on script start.  Using default of %s") %defaultRunLimit
         runLimit = defaultRunLimit
+
+    # Check for changes 
     while (perform_check()):
         if repeatSafety <= runLimit:
             perform_check()
@@ -55,18 +64,23 @@ def main():
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
             break
 
-def perform_check():
+def perform_check(archivedState):
     # Retrieve current data from google drive
     credentials   = get_credentials()
     service       = get_service(credentials)
     currentState  = retrieve_all_meta(service)
-    # reload previous data from store JSON
-    archivedState = ""
-    loadJsonMetaData = "fileMetaData.json"
-    with open(loadJsonMetaData, 'r') as fileData:
-        archivedState = json.loads(fileData.read())
-        fileData.close()    
-    #archivedState = json.loads(open( "fileMetaData.json", "r" ).read())
+    try:
+        # reload previous data from store JSON
+        archivedState = load_Archived_Meta_Data()
+    except:
+        message = "Could not load archived meta data.  Recover a backup."
+        send_email(message)
+        return 1
+    
+    ###########################################################################
+    #  Create a function that strips out all none PeaceGeeks data out of
+    #  BOTH currentState and archivedState
+    ###########################################################################
     
     # Create sets out of the ids from archivedState and currentState to compare
     currentIds = set()
@@ -88,11 +102,16 @@ def perform_check():
         print (message)
         
     else:
+        ########################################################################
+        #  Create function that downloads files if they are added.
+        ########################################################################
+
         message = generate_added_removed_message(archivedState, archivedIds, currentState, currentIds)
         #print send_email(message)
         print (message)
     
     #don't create the json file yet or else you overwrite the check file.
+    # Create backup folder and create dated file names for recovery
     try:
         create_json_file_from_meta(service)
     except:
@@ -103,6 +122,37 @@ def perform_check():
         return 1
     
     return 0
+
+#initially get the ID of Share PeaceGeeks folder
+def get_Share_Peace_Id():
+    folderData = json.loads(open('fileMetaData.json', 'r').read())
+    geekFolderIds = []
+    for item in folderData:
+        if item['title'] == "Shared PeaceGeeks":
+            geekFolderIds.append(item['id'])
+    return geekFolderIds
+
+
+# Start looping through the JSON object of folders, gradually adding ids to a list of ids
+# IF it's parent is already in the list.  Remove the folder from the JSON object if
+# you add the id to the list of PeaceGeeks folder ids.  
+def get_All_PeaceGeek_Folder_Ids():
+    geekFolderIds = getSharePeaceID()
+    while folderData:
+        for item in folderData:
+            if item['mimeType'].find('folder') != -1:
+                if item['parents']:
+                    parent = item['parents']
+                    if parent[0]['id'] in geekFolderIds: 
+                        geekFolderIds.append(item['id'])
+                        folderData.remove(item)
+                    else:
+                        folderData.remove(item)
+                else:
+                    folderData.remove(item)
+            else:
+                folderData.remove(item)
+    return geekFolderIds
 
 def get_id_set(jsonState):
     idSet = set()
@@ -126,7 +176,6 @@ def generate_added_removed_message(archivedState, archivedIds, currentState, cur
     return message
 
 def send_email(message):
-    configDataJson = load_config_data()
     SERVER = "localhost"
     FROM = configDataJson["FROM"]
     
@@ -139,6 +188,14 @@ def send_email(message):
     server = smtplib.SMTP(SERVER)
     server.sendmail(FROM,TO,email)
     return email
+
+def load_Archived_Meta_Data():
+    archivedState = ""
+    loadJsonMetaData = "fileMetaData.json"
+    with open(loadJsonMetaData, 'r') as fileData:
+        archivedState = json.loads(fileData.read())
+        fileData.close()
+    return archivedState
 
 def load_config_data():
     # example config file contents.  Values can be what you like as long as they match that TYPE of data (email address, client_id)
@@ -154,7 +211,6 @@ def load_config_data():
     return configDataJson
 
 def get_credentials():
-    configDataJson = load_config_data()
     #Could prompt for these credentials later.
     client_id     = configDataJson["CLIENTID"]
     client_secret = configDataJson["CLIENTSECRET"]
@@ -232,11 +288,6 @@ def retrieve_all_meta(service):
             except errors.HttpError, error:
                 print 'An error occurred: %s' %error
                 break
-        # Remove any folders from metadata
-        for item in result:
-            if item['mimeType'].find("folder") > -1: 
-                result.remove(item)
-        return result
     print "Could not create service."
     
 def create_json_file_from_meta(service):
