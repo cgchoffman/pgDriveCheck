@@ -37,8 +37,8 @@ def main():
     defaultRunLimit = 10
     repeatSafety = 0
     try:
-        configDataJson = load_config_data()
-    except:
+        configData = load_config_data()
+    except :
         print "There was an error loading the config file."
         return
     try:
@@ -56,7 +56,7 @@ def main():
         runLimit = defaultRunLimit
 
     # Check for changes 
-    while (perform_check()):
+    while (perform_check(configData)):
         if repeatSafety <= runLimit:
             perform_check()
             repeatSafety += 1
@@ -64,9 +64,9 @@ def main():
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
             break
 
-def perform_check(archivedState):
+def perform_check(configData):
     # Retrieve current data from google drive
-    credentials   = get_credentials()
+    credentials   = get_credentials(configData)
     service       = get_service(credentials)
     currentState  = retrieve_all_meta(service)
     try:
@@ -77,15 +77,17 @@ def perform_check(archivedState):
         send_email(message)
         return 1
     
-    ###########################################################################
-    #  Create a function that strips out all none PeaceGeeks data out of
-    #  BOTH currentState and archivedState
-    ###########################################################################
+    # Creat list of folder ids for currentState and archivedState
     
-    # Create sets out of the ids from archivedState and currentState to compare
+   
+    currentStateFolderIds  = get_All_PeaceGeek_Folder_Ids(currentState)
+    archivedStateFolderIds = get_All_PeaceGeek_Folder_Ids(archivedState)
+    
+    # Create sets out of the ids from archivedState and currentState that have
+    # ids in the currentStateFolderIds list and archivedStateFolderIds list
     currentIds = set()
     if None != currentState: 
-        currentIds    = get_id_set(currentState)
+        currentIds = get_id_set(currentState, currentStateFolderIds)
     else:
         print "An error occurred while retrieving the data for your files."
         print "Checking State of variables.  True means variable exists."
@@ -94,7 +96,7 @@ def perform_check(archivedState):
         print "Current Meta Data: %s" %( currentIds != None)
         print "If they are all true and it's still failing, you might need to dig more."
         return 1
-    archivedIds   = get_id_set(archivedState)
+    archivedIds = get_id_set(archivedState, archivedStateFolderIds)
     
     if currentIds == archivedIds:
         message = "There have been no changes to you Google Drive since (previous date checked)"
@@ -124,42 +126,57 @@ def perform_check(archivedState):
     return 0
 
 #initially get the ID of Share PeaceGeeks folder
-def get_Share_Peace_Id():
-    folderData = json.loads(open('fileMetaData.json', 'r').read())
+def get_Share_Peace_Id(folderData):
     geekFolderIds = []
     for item in folderData:
         if item['title'] == "Shared PeaceGeeks":
             geekFolderIds.append(item['id'])
-    return geekFolderIds
+            folderData.remove(item)
+            break
+    return set(geekFolderIds)
 
 
-# Start looping through the JSON object of folders, gradually adding ids to a list of ids
-# IF it's parent is already in the list.  Remove the folder from the JSON object if
-# you add the id to the list of PeaceGeeks folder ids.  
-def get_All_PeaceGeek_Folder_Ids():
-    geekFolderIds = getSharePeaceID()
-    while folderData:
-        for item in folderData:
+# Loop through jsonState looking for folders which have a parent id under the Shared PeaceGeeks
+# hierarchy.  When the list geekFolderIds stops growing then stop the loop.
+def get_All_PeaceGeek_Folder_Ids(jsonState):
+    jsonStateCopy           = jsonState[:]
+    geekFolderIds           = get_Share_Peace_Id(jsonStateCopy)
+    getSharePeaceIDListSize = len(geekFolderIds)
+    while True:
+        for item in jsonStateCopy:
             if item['mimeType'].find('folder') != -1:
                 if item['parents']:
                     parent = item['parents']
-                    if parent[0]['id'] in geekFolderIds: 
-                        geekFolderIds.append(item['id'])
-                        folderData.remove(item)
+                    if parent[0]['id'] in geekFolderIds:
+                        # There can be duplicate folders easily in the Google Drive interface
+                        # so remove any that have already been added.
+                        if item['id'] in geekFolderIds:
+                            jsonStateCopy.remove(item)
+                        else:
+                            geekFolderIds.add(item['id'])
+                            jsonStateCopy.remove(item)
                     else:
-                        folderData.remove(item)
+                        pass
                 else:
-                    folderData.remove(item)
+                    jsonStateCopy.remove(item)
             else:
-                folderData.remove(item)
-    return geekFolderIds
+                jsonStateCopy.remove(item)
+        if len(geekFolderIds) == getSharePeaceIDListSize:
+            break
+        else:
+            getSharePeaceIDListSize = len(geekFolderIds)
+    return list(geekFolderIds)
 
-def get_id_set(jsonState):
+# get ids that are in the Shared PeaceGeeks Hierarchy.
+def get_id_set(jsonState, listOfIds):
     idSet = set()
-    if None != jsonState: 
+    if None != jsonState:
         for file in jsonState:
-            idSet.add(file["id"])
-            #currentIds[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
+            if file['mimeType'].find('folder') != -1 and file["parents"] and file["parents"][0]["id"] in listOfIds:
+            #for item in file["parents"]:
+            #    if item[0]["id"] in listOfIds:
+                idSet.add(file["id"])
+                    #currentIds[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
     return idSet
 
 def generate_added_removed_message(archivedState, archivedIds, currentState, currentIds):
@@ -177,9 +194,9 @@ def generate_added_removed_message(archivedState, archivedIds, currentState, cur
 
 def send_email(message):
     SERVER = "localhost"
-    FROM = configDataJson["FROM"]
-    
-    TO = configDataJson["TOREPORT"]
+    FROM = configData["FROM"]
+    #This needs to be able to change TO location
+    TO = configData["TOREPORT"]
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
     SUBJECT = "PeaceGeeks Server - Google Drive Report"
@@ -201,19 +218,18 @@ def load_config_data():
     # example config file contents.  Values can be what you like as long as they match that TYPE of data (email address, client_id)
     #  {"TO": ["carey@peacegeeks.org"], "FROM": "it@peacegeeks.org", "CLIENTID": "longstringoflettersandnyumbers666.apps.googleusercontent.com", "CLIENTSECRET":"string_of_lettersandnumbers"}
 
-    configDataJson = ""
+    configData = ""
     loadConfigFile = "config.json"
     # Add Try that will start a create_config_file function
     # if one doesn't exist.
     with open(loadConfigFile, 'r') as configData:
-        configDataJson = json.loads(configData.read())
-        configData.close()
-    return configDataJson
+        configData = json.loads(configData.read())
+    return configData
 
-def get_credentials():
+def get_credentials(configData):
     #Could prompt for these credentials later.
-    client_id     = configDataJson["CLIENTID"]
-    client_secret = configDataJson["CLIENTSECRET"]
+    client_id     = configData["CLIENTID"]
+    client_secret = configData["CLIENTSECRET"]
     # The scope URL for read/write access to a user's calendar data
     scope         = 'https://www.googleapis.com/auth/drive.readonly'
     # Create a flow object. This object holds the client_id, client_secret, and
@@ -288,8 +304,10 @@ def retrieve_all_meta(service):
             except errors.HttpError, error:
                 print 'An error occurred: %s' %error
                 break
-    print "Could not create service."
-    
+    else:
+        print "Could not create service."
+    return result
+
 def create_json_file_from_meta(service):
     try:
         all_files_meta = retrieve_all_meta(service)# returns result[]
