@@ -74,7 +74,7 @@ def perform_check(configData):
         archivedState = load_Archived_Meta_Data()
     except:
         message = "Could not load archived meta data.  Recover a backup."
-        send_email(message)
+        send_email(message, configData)
         return 1
     
     # Creat list of folder ids for currentState and archivedState
@@ -192,7 +192,7 @@ def generate_added_removed_message(archivedState, archivedIds, currentState, cur
             message += "\nFile name: %s\nFile Owner: %s" %(file["title"],file["ownerNames"])
     return message
 
-def send_email(message):
+def send_email(message, configData):
     SERVER = "localhost"
     FROM = configData["FROM"]
     #This needs to be able to change TO location
