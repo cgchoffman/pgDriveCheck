@@ -106,6 +106,8 @@ def perform_check(configData):
     else:
         ########################################################################
         #  Create function that downloads files if they are added.
+	#  Will likely access downloadAllFiles.py to perform this
+	#  rather than integrating to the files together.
         ########################################################################
 
         message = generate_added_removed_message(archivedState, archivedIds, currentState, currentIds)
