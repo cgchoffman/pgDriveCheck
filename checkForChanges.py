@@ -34,10 +34,12 @@ from apiclient import errors
 
 
 def main():
+    configFile      = "config.json"
+    archiveData     = "fileMetaData.json"
     defaultRunLimit = 10
-    repeatSafety = 0
+    repeatSafety    = 0
     try:
-        configData = load_config_data()
+        configData = load_json_file(configFile)
     except :
         print "There was an error loading the config file."
         return
@@ -71,7 +73,7 @@ def perform_check(configData):
     currentState  = retrieve_all_meta(service)
     try:
         # reload previous data from store JSON
-        archivedState = load_Archived_Meta_Data()
+        archivedState = load_json_file(archiveData)
     except:
         message = "Could not load archived meta data.  Recover a backup."
         send_email(message, configData)
@@ -206,25 +208,11 @@ def send_email(message, configData):
     server.sendmail(FROM,TO,email)
     return email
 
-def load_Archived_Meta_Data():
-    archivedState = ""
-    loadJsonMetaData = "fileMetaData.json"
-    with open(loadJsonMetaData, 'r') as fileData:
-        archivedState = json.loads(fileData.read())
+def load_json_file(jsonFile):
+    with open(jsonFile, 'r') as fileData:
+        jsonData = json.loads(fileData.read())
         fileData.close()
-    return archivedState
-
-def load_config_data():
-    # example config file contents.  Values can be what you like as long as they match that TYPE of data (email address, client_id)
-    #  {"TO": ["carey@peacegeeks.org"], "FROM": "it@peacegeeks.org", "CLIENTID": "longstringoflettersandnyumbers666.apps.googleusercontent.com", "CLIENTSECRET":"string_of_lettersandnumbers"}
-
-    configData = ""
-    loadConfigFile = "config.json"
-    # Add Try that will start a create_config_file function
-    # if one doesn't exist.
-    with open(loadConfigFile, 'r') as configData:
-        configData = json.loads(configData.read())
-    return configData
+    return jsonData
 
 def get_credentials(configData):
     #Could prompt for these credentials later.
