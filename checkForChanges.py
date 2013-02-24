@@ -117,6 +117,7 @@ def perform_check(configData):
         #  Add functionality to look for changes in files by checking changed date
         ##########################################################################
 
+
         removedIds = get_difference(archivedIds, currentIds)
         addedIds   = get_difference(currentIds, archivedIds)
         message    = generate_added_removed_message(removedIds, addedIds, archivedState, currentState)
