@@ -14,74 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import httplib2
-import urllib2
-import urllib
 import shutil
-import json
 import sys
 import os
 
-from apiclient.discovery import build
-from oauth2client.file import Storage
-from oauth2client.client import AccessTokenRefreshError
-from oauth2client.client import OAuth2WebServerFlow
-from oauth2client.tools import run
-from apiclient import errors
+def main(service, jsonedFiles):
 
-
-
-def main():
-    
-    configData    = load_json_file("config.json")
-    client_id     = configData["CLIENTID"]
-    client_secret = configData["CLIENTSECRET"]
-    scope = 'https://www.googleapis.com/auth/drive.readonly'
-    # Create a flow object. This object holds the client_id, client_secret, and
-   # scope. It assists with OAuth 2.0 steps to get user authorization and
-   # credentials.
-    flow = OAuth2WebServerFlow(client_id, client_secret, scope)
- 
-    # Create a Storage object. This object holds the credentials that your
-    # application needs to authorize access to the user's data. The name of the
-    # credentials file is provided. If the file does not exist, it is
-    # created. This object can only hold credentials for a single user, so
-    # as-written, this script can only handle a single user.
-    storage = Storage('credentials2.dat')
-
-    # The get() function returns the credentials for the Storage object. If no
-    # credentials were found, None is returned.
-    credentials = storage.get()
-
-    # If no credentials are found or the credentials are invalid due to
-    # expiration, new credentials need to be obtained from the authorization
-    # server. The oauth2client.tools.run() function attempts to open an
-    # authorization server page in your default web browser. The server
-    # asks the user to grant your application access to the user's data.
-    # If the user grants access, the run() function returns new credentials.
-    # The new credentials are also stored in the supplied Storage object,
-    # which updates the credentials.dat file.
-    if credentials is None or credentials.invalid:
-        credentials = run(flow, storage)
-
-    # Create an httplib2.Http object to handle our HTTP requests, and authorize it
-    # using the credentials.authorize() function.
-    http = httplib2.Http()
-    http = credentials.authorize(http)
-
-    # The apiclient.discovery.build() function returns an instance of an API service
-    # object can be used to make API calls. The object is constructed with
-    # methods specific to the calendar API. The arguments provided are:
-    #   name of the API ('calendar')
-    #   version of the API you are using ('v3')
-    #   authorized httplib2.Http() object that can be used for API calls
-    service = build('drive', 'v2', http=http)
-
-    failed = []
     try:
-
-        number_of_files_to_download = -1 # Number of files to dl, set -1 for all.
-        allFiles = retrieve_all_meta_files(service)# returns result[]
+        number_of_files_to_download = 1 # Number of files to dl, set -1 for all.
+        allFiles = files[:]
 
         for file in allFiles:
             number_of_files_to_download -= 1
@@ -93,7 +34,7 @@ def main():
                 dFile = get_export_link(file)
             except KeyError: # Some files don't have an export link
                 try:
-                    dFile = file['downloadUrl'] 
+                    dFile = file['downloadUrl']
                 except KeyError: # Some files don't have a downloadUrl
                     try:
                         dFile = file['webContentLink']
@@ -178,7 +119,7 @@ def retrieve_all_meta_files(service):
     return result
 
 def get_export_link(file):
-        # Not all file objects have an exportLink it looks like, m
+    # Not all file objects have an exportLink it seems
     fileName = file['title']
     ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns file extension
     print ext, fileName

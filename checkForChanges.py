@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import getFiles
+
 import httplib2
 import urllib2
 import urllib
@@ -35,8 +37,7 @@ from apiclient import errors
 
 def main():
     configFile      = "config.json"
-    archiveData     = "fileMetaData.json"
-    defaultRunLimit = 10
+    defaultRunLimit = 3
     repeatSafety    = 0
     try:
         configData = load_json_file(configFile)
@@ -57,38 +58,42 @@ def main():
         print ("No run time loop limit given on script start.  Using default of %s") %defaultRunLimit
         runLimit = defaultRunLimit
 
-    # Check for changes 
+    # Check for changes
     while (perform_check(configData)):
         if repeatSafety <= runLimit:
-            perform_check()
+            perform_check(configData)
             repeatSafety += 1
         else:
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
             break
+    print "We're all done here.  Make sure nothing went wrong."
 
 def perform_check(configData):
     # Retrieve current data from google drive
-    credentials   = get_credentials(configData)
-    service       = get_service(credentials)
-    currentState  = retrieve_all_meta(service)
+    credentials  = get_credentials(configData)
+    service      = get_service(credentials)
+    currentState = retrieve_all_meta(service)
+    archiveData  = "fileMetaData.json"
+
     try:
         # reload previous data from store JSON
         archivedState = load_json_file(archiveData)
     except:
         message = "Could not load archived meta data.  Recover a backup."
-        send_email(message, configData)
-        return 1
-    
+        #send_email(message, configData)
+        print (message)
+        return 0
+
     # Creat list of folder ids for currentState and archivedState
-    
-   
+
+
     currentStateFolderIds  = get_All_PeaceGeek_Folder_Ids(currentState)
     archivedStateFolderIds = get_All_PeaceGeek_Folder_Ids(archivedState)
-    
+
     # Create sets out of the ids from archivedState and currentState that have
     # ids in the currentStateFolderIds list and archivedStateFolderIds list
     currentIds = set()
-    if None != currentState: 
+    if None != currentState:
         currentIds = get_id_set(currentState, currentStateFolderIds)
     else:
         print "An error occurred while retrieving the data for your files."
@@ -99,32 +104,37 @@ def perform_check(configData):
         print "If they are all true and it's still failing, you might need to dig more."
         return 1
     archivedIds = get_id_set(archivedState, archivedStateFolderIds)
-    
+
     if currentIds == archivedIds:
         message = "There have been no changes to you Google Drive since (previous date checked)"
         #print send_email(message)
         print (message)
-        
-    else:
-        ########################################################################
-        #  Create function that downloads files if they are added.
-        ########################################################################
 
-        message = generate_added_removed_message(archivedState, archivedIds, currentState, currentIds)
+    else:
+        ##########################################################################
+        #  Create function that downloads files if they are added.
+        #  Criteria is changed or added.
+        #  Add functionality to look for changes in files by checking changed date
+        ##########################################################################
+
+        removedIds = get_difference(archivedIds, currentIds)
+        addedIds   = get_difference(currentIds, archivedIds)
+        message    = generate_added_removed_message(removedIds, addedIds, archivedState, currentState)
         #print send_email(message)
         print (message)
-    
+
     #don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
     try:
-        create_json_file_from_meta(service)
+        pass
+        #create_json_file_from_meta(service)
     except:
         message = """Could not create new State file.
                      Some how lost your internet connect between starting this script and now."""
         #print send_email(message)
         print (message)
         return 1
-    
+
     return 0
 
 #initially get the ID of Share PeaceGeeks folder
@@ -141,6 +151,9 @@ def get_Share_Peace_Id(folderData):
 # Loop through jsonState looking for folders which have a parent id under the Shared PeaceGeeks
 # hierarchy.  When the list geekFolderIds stops growing then stop the loop.
 def get_All_PeaceGeek_Folder_Ids(jsonState):
+    ###
+    ###  THIS IS ALL GOING TO GET REPLACED BY Union-Find AS SUGGESTED BY Mark.
+    ###
     jsonStateCopy           = jsonState[:]
     geekFolderIds           = get_Share_Peace_Id(jsonStateCopy)
     getSharePeaceIDListSize = len(geekFolderIds)
@@ -181,17 +194,21 @@ def get_id_set(jsonState, listOfIds):
                     #currentIds[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
     return idSet
 
-def generate_added_removed_message(archivedState, archivedIds, currentState, currentIds):
-    removedIds = archivedIds.difference(currentIds)
-    message     = "=== Files Removed ==="
-    for file in archivedState:
-        if file["id"] in removedIds:
-            message += "\nFile name: %s\nFile Owner: %s" %(file["title"],file["ownerNames"])
-    addedIds   = currentIds.difference(archivedIds)
-    message     += "\n\n=== Files Added ==="
-    for file in currentState:
-        if file["id"] in addedIds:
-            message += "\nFile name: %s\nFile Owner: %s" %(file["title"],file["ownerNames"])
+def get_difference(setOne, setTwo):
+    diff = setOne.difference(setTwo)
+    return diff
+
+def get_title_owner(message, ids, state):
+    for file in state:
+        if file["id"] in ids:
+            message += "File name: %s\nFile Owner: %s\n" %(file["title"],file["ownerNames"])
+    return message
+
+def generate_added_removed_message(removedIds, addedIds, archivedState, currentState):
+    message     = "=== Files Removed ===\n"
+    get_title_owner(message, removedIds, archivedState)
+    message     += "\n=== Files Added ==="
+    get_title_owner(message, addedIds, currentState)
     return message
 
 def send_email(message, configData):
@@ -230,11 +247,11 @@ def get_credentials(configData):
     # created. This object can only hold credentials for a single user, so
     # as-written, this script can only handle a single user.
     storage = Storage('credentials.dat')
-  
+
     # The get() function returns the credentials for the Storage object. If no
     # credentials were found, None is returned.
     credentials = storage.get()
-  
+
     # If no credentials are found or the credentials are invalid due to
     # expiration, new credentials need to be obtained from the authorization
     # server. The oauth2client.tools.run() function attempts to open an
@@ -252,7 +269,7 @@ def get_service(credentials):
     # using the credentials.authorize() function.
     http = httplib2.Http()
     http = credentials.authorize(http)
-    
+
     # The apiclient.discovery.build() function returns an instance of an API service
     # object can be used to make API calls. The object is constructed with
     # methods specific to the calendar API. The arguments provided are:
@@ -266,10 +283,10 @@ def get_service(credentials):
         "Check that you are conntected to the internet.", httpError
         return
     return service
-        
+
 def retrieve_all_meta(service):
     """Retrieve a list of File resources.
-  
+
     Args:
       service: Drive API service instance.
     Returns:
@@ -284,7 +301,7 @@ def retrieve_all_meta(service):
                 if page_token:
                     param['pageToken'] = page_token
                 files = service.files().list(**param).execute()
-          
+
                 result.extend(files['items'])
                 page_token = files.get('nextPageToken')
                 if not page_token:
@@ -303,7 +320,7 @@ def create_json_file_from_meta(service):
         with open(filename, 'w') as dst:
             json.dump(all_files_meta, dst)
             dst.close()
-    
+
     except AccessTokenRefreshError:
         # The AccessTokenRefreshError exception is raised if the credentials
         # have been revoked by the user or they have expired.
@@ -316,7 +333,7 @@ def ensure_dir(f):
       try:
         os.makedirs(d)
       except Exception as e:
-        return e    
+        return e
 
 if __name__ == '__main__':
-    main() 
+    main()
