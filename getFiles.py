@@ -18,58 +18,18 @@ import shutil
 import sys
 import os
 
-def main(service, jsonedFiles):
+def write_file(content, filename):
+    # 'home' should work on any platform.  OSX not checked.
+    home = os.getenv('USERPROFILE') or os.getenv('HOME')
+    os.getenv()
+    path = "%s/driveBackups/%s"%(home,filename)
+    ensure_dir(path)
+    with open(path, 'w') as dst:
+        dst.write(content)
 
-    try:
-        number_of_files_to_download = 1 # Number of files to dl, set -1 for all.
-        allFiles = files[:]
-
-        for file in allFiles:
-            number_of_files_to_download -= 1
-            if number_of_files_to_download == 0:
-                break
-            try:
-                if file['mimeType'].find("folder") > -1: # It's not a file, skip it
-                    continue
-                dFile = get_export_link(file)
-            except KeyError: # Some files don't have an export link
-                try:
-                    dFile = file['downloadUrl']
-                except KeyError: # Some files don't have a downloadUrl
-                    try:
-                        dFile = file['webContentLink']
-                    except KeyError: # Some files don't have a webContentLink...now we're screwed.
-                        print "no download url found"
-                        failed.append(file)
-                        continue
-            except Exception as e:
-                print "something went wrong with a file. Will skip and continue.", e
-                continue
-            content, filename = download_file(service, dFile)
-            # 'home' should work on any platform.  OSX not checked.
-            home = os.getenv('USERPROFILE')  or os.getenv('HOME')
-            path = "%s/driveBackups/%s"%(home,filename)
-            ensure_dir(path)
-            with open(path, 'w') as dst:
-                dst.write(content)
-
-    except AccessTokenRefreshError:
-        # The AccessTokenRefreshError exception is raised if the credentials
-        # have been revoked by the user or they have expired.
-        print ('The credentials have been revoked or expired, please re-run'
-               'the application to re-authorize')
-    print len(failed)
-    print failed
-    download_file()
-
-def load_json_file(jsonFile):
-    with open(jsonFile, 'r') as fileData:
-        jsonData = json.loads(fileData.read())
-        fileData.close()
-    return jsonData
 
 def download_file(service, download_url):
-    """Download a file's content.
+    """Download a file's content.  Returns content and filename
 
     Args:
       service: Drive API service instance.
@@ -92,52 +52,44 @@ def download_file(service, download_url):
         # The file doesn't have any content stored on Drive.
         return "The file doesn't have any content stored on Drive."
 
-def retrieve_all_meta_files(service):
-    """Retrieve a list of File resources.
-
-    Args:
-      service: Drive API service instance.
-    Returns:
-      List of File resources.
-    """
-    result = []
-    page_token = None
-    while True:
-        try:
-            param = {}
-            if page_token:
-                param['pageToken'] = page_token
-            files = service.files().list(**param).execute()
-
-            result.extend(files['items'])
-            page_token = files.get('nextPageToken')
-            if not page_token:
-                break
-        except errors.HttpError, error:
-            print 'An error occurred: %s' % error
-            break
-    return result
-
-def get_export_link(file):
-    # Not all file objects have an exportLink it seems
-    fileName = file['title']
-    ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns file extension
+def get_export_link(fileJSON):
+    """Get the exportLink value from the file object
+    Not all fileJSON objects have an exportLink it seems
+    This function could be hidden but i dunno how :(  I learn later.  No
+    internets right now."""
+    
+    fileName = fileJSON['title']
+    ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns fileJSON extension
     print ext, fileName
-    for key in file['exportLinks']:
-        if file['exportLinks'][key].find('=%s'%ext)>-1:
-            return file['exportLinks'][key]
-    return file['exportLinks'].popitem()[1]
+    for key in fileJSON['exportLinks']:
+        if fileJSON['exportLinks'][key].find('=%s'%ext)>-1:
+            return fileJSON['exportLinks'][key]
+    return fileJSON['exportLinks'].popitem()[1]
 
+def get_download_url(fileJSON):
+    """ Get the link that can download the file
+    """
+    try:
+        dFile = get_export_link(fileJSON)
+        return dFile
+    except KeyError: # Some fileJSONs don't have an export link
+        try:
+            dFile = fileJSON['downloadUrl']
+            return dFile
+        except KeyError: # Some fileJSONs don't have a downloadUrl
+            try:
+                dFile = fileJSON['webContentLink']
+                return dFile
+            except KeyError: # Some fileJSONs don't have a webContentLink...now we're screwed.
+                print "no download url found"
+                return None
 
-
-def ensure_dir(f):
+def ensure_dir(path):
+    """ Make sure the path exist that you're writing to
+    """
     d = os.path.dirname(f)
     if not os.path.exists(d):
         try:
             os.makedirs(d)
         except Exception as e:
             return e
-
-if __name__ == '__main__':
-    main()
-
