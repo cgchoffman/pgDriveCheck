@@ -103,7 +103,7 @@ def perform_check(configData):
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
 
-    if currentFileIDs == archivedFileIDs:
+    if len(currentFileIDs.difference(archivedFileIDs)) == 0:
         message = "There have been no changes to you Google Drive since (previous date checked)"
         #print send_email(message)
         print (message)
@@ -119,6 +119,16 @@ def perform_check(configData):
 
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
         addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
+
+    #  Download added Files
+        import getFiles
+        for GDriveObject in currentGDriveState:
+            if GDriveObject['mimeType'].find('folder') != -1:
+                if GDriveObject['id'] in addedFileIDs:
+                    dFile = getFiles.get_download_url()
+                    content, filename = getFiles.download_file(service, dFile)
+                    getFiles.write_file(content, filename)
+
         message    = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         #print send_email(message)
         print (message)
