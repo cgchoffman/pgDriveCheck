@@ -70,57 +70,56 @@ def main():
 
 def perform_check(configData):
     # Retrieve current data from google drive
-    credentials  = get_credentials(configData)
-    service      = get_service(credentials)
-    currentState = retrieve_all_meta(service)
-    archiveData  = "fileMetaData.json"
+    credentials          = get_credentials(configData)
+    service              = get_service(credentials)
+    currentGDriveState   = retrieve_all_meta(service)
+    archivedGDriveStateFilename  = "fileMetaData.json"
+
+    # Check that the currentGDriveState was created
+    if None == currentGDriveState:
+        print "An error occurred while retrieving the data for your files."
+        print "Checking State of variables.  True means variable exists."
+        print "Service State: %s" %(service != None)
+        print "Credentials State: %s" %(credentials != None)
+        print "Current Meta Data: %s" %( currentFileIDs != None)
+        print "If they are all true and it's still failing, you might need to dig more."
+        return 1
 
     try:
         # reload previous data from store JSON
-        archivedState = load_json_file(archiveData)
+        archivedGDriveState = load_json_file(archivedGDriveStateFilename)
     except:
         message = "Could not load archived meta data.  Recover a backup."
         #send_email(message, configData)
         print (message)
         return 0
 
-    # Creat list of folder ids for currentState and archivedState
+    # Creat list of folder ids for currentGDriveState and archivedGDriveState
+    currentGDriveStateFolderIds  = get_All_PeaceGeek_Folder_Ids(currentGDriveState)
+    archivedGDriveStateFolderIds = get_All_PeaceGeek_Folder_Ids(archivedGDriveState)
 
+    # Create sets out of the file IDs from archivedGDriveState and currentGDriveState that have
+    # ids in the currentGDriveStateFolderIds list and archivedGDriveStateFolderIds list
+    currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
+    archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
 
-    currentStateFolderIds  = get_All_PeaceGeek_Folder_Ids(currentState)
-    archivedStateFolderIds = get_All_PeaceGeek_Folder_Ids(archivedState)
-
-    # Create sets out of the ids from archivedState and currentState that have
-    # ids in the currentStateFolderIds list and archivedStateFolderIds list
-    currentIds = set()
-    if None != currentState:
-        currentIds = get_id_set(currentState, currentStateFolderIds)
-    else:
-        print "An error occurred while retrieving the data for your files."
-        print "Checking State of variables.  True means variable exists."
-        print "Service State: %s" %(service != None)
-        print "Credentials State: %s" %(credentials != None)
-        print "Current Meta Data: %s" %( currentIds != None)
-        print "If they are all true and it's still failing, you might need to dig more."
-        return 1
-    archivedIds = get_id_set(archivedState, archivedStateFolderIds)
-
-    if currentIds == archivedIds:
+    if currentFileIDs == archivedFileIDs:
         message = "There have been no changes to you Google Drive since (previous date checked)"
         #print send_email(message)
         print (message)
 
     else:
-        ##########################################################################
+        ########################################################################
         #  Create function that downloads files if they are added.
         #  Criteria is changed or added.
-        #  Add functionality to look for changes in files by checking changed date
-        ##########################################################################
+        #  Add functionality to look for changes in files by checking changed
+        #  date
+        ########################################################################
 
 
-        removedIds = get_difference(archivedIds, currentIds)
-        addedIds   = get_difference(currentIds, archivedIds)
-        message    = generate_added_removed_message(removedIds, addedIds, archivedState, currentState)
+        removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
+        addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
+        message    = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         #print send_email(message)
         print (message)
 
@@ -183,8 +182,8 @@ def get_All_PeaceGeek_Folder_Ids(jsonState):
             getSharePeaceIDListSize = len(geekFolderIds)
     return list(geekFolderIds)
 
-# get ids that are in the Shared PeaceGeeks Hierarchy.
-def get_id_set(jsonState, listOfIds):
+# get ids of FILES that are in the Shared PeaceGeeks Hierarchy.
+def get_file_id_set(jsonState, listOfIds):
     idSet = set()
     if None != jsonState:
         for file in jsonState:
@@ -192,7 +191,7 @@ def get_id_set(jsonState, listOfIds):
             #for item in file["parents"]:
             #    if item[0]["id"] in listOfIds:
                 idSet.add(file["id"])
-                    #currentIds[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
+                    #currentFileIDs[hashlib.sha224(file["id"]).hexdigest()] = file["id"]
     return idSet
 
 def get_difference(setOne, setTwo):
@@ -205,11 +204,11 @@ def get_title_owner(message, ids, state):
             message += "File name: %s\nFile Owner: %s\n" %(file["title"],file["ownerNames"])
     return message
 
-def generate_added_removed_message(removedIds, addedIds, archivedState, currentState):
+def generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState):
     message     = "=== Files Removed ===\n"
-    get_title_owner(message, removedIds, archivedState)
+    get_title_owner(message, removedFileIDs, archivedGDriveState)
     message     += "\n=== Files Added ==="
-    get_title_owner(message, addedIds, currentState)
+    get_title_owner(message, addedFileIDs, currentGDriveState)
     return message
 
 def send_email(message, configData):
