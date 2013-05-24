@@ -14,14 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# XXX have a look at https://developers.google.com/drive/v2/reference/changes/list
+# for methods to use from Google Drive.
 import getFiles
 
 import httplib2
 import urllib2
-import urllib
 import shutil
 import sys
 import os
+from datetime import datetime
 
 import json
 import hashlib
@@ -39,6 +41,8 @@ def main():
     configFile      = "config.json"
     defaultRunLimit = 3
     repeatSafety    = 0
+    now             = datetime.now();
+    date            =  now.strftime("%Y-%m-%d-%H-%M")
     try:
         configData = load_json_file(configFile)
     except :
@@ -59,7 +63,7 @@ def main():
         runLimit = defaultRunLimit
 
     # Check for changes
-    while (perform_check(configData)):
+    while (perform_check(configData, date)):
         if repeatSafety <= runLimit:
             perform_check(configData)
             repeatSafety += 1
@@ -68,12 +72,11 @@ def main():
             break
     print "We're all done here.  Make sure nothing went wrong."
 
-def perform_check(configData):
+def perform_check(configData, date):
     # Retrieve current data from google drive
-    credentials          = get_credentials(configData)
-    service              = get_service(credentials)
-    currentGDriveState   = retrieve_all_meta(service)
-    archivedGDriveStateFilename  = "fileMetaData.json"
+    credentials                  = get_credentials(configData)
+    service                      = get_service(credentials)
+    currentGDriveState           = retrieve_all_meta(service)
 
     # Check that the currentGDriveState was created
     if None == currentGDriveState:
@@ -85,6 +88,7 @@ def perform_check(configData):
         print "If they are all true and it's still failing, you might need to dig more."
         return 1
 
+    archivedGDriveStateFilename  = "fileMetaData.json"
     try:
         # reload previous data from store JSON
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
@@ -95,54 +99,53 @@ def perform_check(configData):
         return 0
 
     # Creat list of folder ids for currentGDriveState and archivedGDriveState
-    currentGDriveStateFolderIds  = get_All_PeaceGeek_Folder_Ids(currentGDriveState)
-    archivedGDriveStateFolderIds = get_All_PeaceGeek_Folder_Ids(archivedGDriveState)
+    currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
+    archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
 
     # Create sets out of the file IDs from archivedGDriveState and currentGDriveState that have
     # ids in the currentGDriveStateFolderIds list and archivedGDriveStateFolderIds list
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
 
-    if len(currentFileIDs.difference(archivedFileIDs)) == 0:
-        message = "There have been no changes to you Google Drive since (previous date checked)"
+    # Must check both directions just incase one is empty
+    if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
+        import os.path, time
+        message = "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
         #print send_email(message)
         print (message)
 
     else:
         ########################################################################
         #  Create function that downloads files if they are added.
-        #  Criteria is changed or added.
-        #  Add functionality to look for changes in files by checking changed
-        #  date
         ########################################################################
-
-
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
         addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
 
     #  Download added Files
         import getFiles
         for GDriveObject in currentGDriveState:
-            if GDriveObject['mimeType'].find('folder') != -1:
+            if GDriveObject['mimeType'].find('folder') == -1:
                 if GDriveObject['id'] in addedFileIDs:
-                    dFile = getFiles.get_download_url()
-                    content, filename = getFiles.download_file(service, dFile)
-                    getFiles.write_file(content, filename)
+                    try:
+                        dFile = getFiles.get_download_url(GDriveObject)
+                        content, filename = getFiles.download_file(service, dFile)
+                        getFiles.write_file(content, filename, date)
+                    except Exception as e:
+                        print e
 
-        message    = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
+        message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         #print send_email(message)
         print (message)
 
-    #don't create the json file yet or else you overwrite the check file.
+    # don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
     try:
         pass
-        #create_json_file_from_meta(service)
-    except:
-        message = """Could not create new State file.
-                     Some how lost your internet connect between starting this script and now."""
+        #create_json_file_from_meta(currentGDriveState)
+    except Exception as e:
+        print (e)
         #print send_email(message)
-        print (message)
+        #print (message)
         return 1
 
     return 0
@@ -151,16 +154,23 @@ def perform_check(configData):
 def get_Share_Peace_Id(folderData):
     geekFolderIds = []
     for item in folderData:
-        if item['title'] == "Shared PeaceGeeks":
+        if item['title'] == "Shared PeaceGeeks" or item['title'] == "PeaceGeeks Drive":
             geekFolderIds.append(item['id'])
             folderData.remove(item)
             break
     return set(geekFolderIds)
 
+def create_list_of_files(idSet, jsonState):
+    jsonStateCopy = jsonState[:]
+    for item in jsonStateCopy:
+        if item['id'] not in idSet:
+            jsonStateCopy.remove(item)
+    return jsonStateCopy
+
 
 # Loop through jsonState looking for folders which have a parent id under the Shared PeaceGeeks
 # hierarchy.  When the list geekFolderIds stops growing then stop the loop.
-def get_All_PeaceGeek_Folder_Ids(jsonState):
+def get_all_pg_folder_ids(jsonState):
     ###
     ###  THIS IS ALL GOING TO GET REPLACED BY Union-Find AS SUGGESTED BY Mark.
     ###
@@ -169,7 +179,7 @@ def get_All_PeaceGeek_Folder_Ids(jsonState):
     getSharePeaceIDListSize = len(geekFolderIds)
     while True:
         for item in jsonStateCopy:
-            if item['mimeType'].find('folder') != -1:
+            if item['mimeType'].find('folder') > -1:
                 if item['parents']:
                     parent = item['parents']
                     if parent[0]['id'] in geekFolderIds:
@@ -190,14 +200,14 @@ def get_All_PeaceGeek_Folder_Ids(jsonState):
             break
         else:
             getSharePeaceIDListSize = len(geekFolderIds)
-    return list(geekFolderIds)
+    return list(set(geekFolderIds))
 
 # get ids of FILES that are in the Shared PeaceGeeks Hierarchy.
 def get_file_id_set(jsonState, listOfIds):
     idSet = set()
     if None != jsonState:
         for file in jsonState:
-            if file['mimeType'].find('folder') != -1 and file["parents"] and file["parents"][0]["id"] in listOfIds:
+            if file['mimeType'].find('folder') == -1 and file["parents"] and file["parents"][0]["id"] in listOfIds:
             #for item in file["parents"]:
             #    if item[0]["id"] in listOfIds:
                 idSet.add(file["id"])
@@ -323,27 +333,19 @@ def retrieve_all_meta(service):
         print "Could not create service."
     return result
 
-def create_json_file_from_meta(service):
+def create_json_file_from_meta(stateJSON):
     try:
-        all_files_meta = retrieve_all_meta(service)# returns result[]
         filename = "fileMetaData.json"
         with open(filename, 'w') as dst:
-            json.dump(all_files_meta, dst)
+            json.dump(stateJSON, dst)
             dst.close()
+        print ("Archived PG Drive created.  Thanks!")
 
-    except AccessTokenRefreshError:
-        # The AccessTokenRefreshError exception is raised if the credentials
-        # have been revoked by the user or they have expired.
-        print ('The credentials have been revoked or expired, please re-run'
-               'the application to re-authorize')
+    except IOError as (errno, strerror):
+        raise
+    except:
+        raise
 
-def ensure_dir(f):
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
-      try:
-        os.makedirs(d)
-      except Exception as e:
-        return e
 
 if __name__ == '__main__':
     main()

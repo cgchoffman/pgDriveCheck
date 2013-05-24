@@ -15,15 +15,18 @@
 # limitations under the License.
 
 import shutil
+import urllib2
+import urllib
 import sys
 import os
 
-def write_file(content, filename):
+def write_file(content, filename, date):
     # 'home' should work on any platform.  OSX not checked.
     home = os.getenv('USERPROFILE') or os.getenv('HOME')
-    os.getenv()
-    path = "%s/driveBackups/%s"%(home,filename)
+    path = os.path.join(home, "driveBackup", date)
     ensure_dir(path)
+    # append filename to path
+    path = os.path.join(path, filename)
     with open(path, 'w') as dst:
         dst.write(content)
 
@@ -57,10 +60,9 @@ def get_export_link(fileJSON):
     Not all fileJSON objects have an exportLink it seems
     This function could be hidden but i dunno how :(  I learn later.  No
     internets right now."""
-    
+
     fileName = fileJSON['title']
     ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns fileJSON extension
-    print ext, fileName
     for key in fileJSON['exportLinks']:
         if fileJSON['exportLinks'][key].find('=%s'%ext)>-1:
             return fileJSON['exportLinks'][key]
@@ -87,9 +89,9 @@ def get_download_url(fileJSON):
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to
     """
-    d = os.path.dirname(f)
-    if not os.path.exists(d):
+    #d = os.path.dirname(path)
+    if not os.path.exists(path):
         try:
-            os.makedirs(d)
+            os.makedirs(path)
         except Exception as e:
             return e
