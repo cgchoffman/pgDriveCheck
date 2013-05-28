@@ -19,7 +19,8 @@ import urllib2
 import urllib
 import sys
 import os
-
+# XXX I think auth might be timing out or something.  Downloads just failed
+# after 451 files.  never completed.  Completiong logic could be wrong too.
 def write_file(content, filename, date):
     # 'home' should work on any platform.  OSX not checked.
     home = os.getenv('USERPROFILE') or os.getenv('HOME')
