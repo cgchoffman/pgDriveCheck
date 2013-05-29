@@ -19,6 +19,7 @@
 import getFiles
 
 import httplib2
+import logging
 import urllib2
 import shutil
 import sys
@@ -38,11 +39,11 @@ from apiclient import errors
 
 
 def main():
+
     configFile      = "config.json"
     defaultRunLimit = 3
     repeatSafety    = 0
-    now             = datetime.now();
-    date            =  now.strftime("%Y-%m-%d-%H-%M")
+    date            = datetime.now().strftime("%Y-%m-%d-%H-%M")
     try:
         configData = load_json_file(configFile)
     except :
@@ -123,15 +124,20 @@ def perform_check(configData, date):
 
     #  Download added Files
         import getFiles
+        succDnLds = 0
         for GDriveObject in currentGDriveState:
             if GDriveObject['mimeType'].find('folder') == -1:
                 if GDriveObject['id'] in addedFileIDs:
-                    try:
-                        dFile = getFiles.get_download_url(GDriveObject)
-                        content, filename = getFiles.download_file(service, dFile)
-                        getFiles.write_file(content, filename, date)
-                    except Exception as e:
-                        print e
+                    dFile = getFiles.get_download_url(GDriveObject)
+                    if dFile != None:
+                        try:
+                            content, filename = getFiles.download_file(service, dFile)
+                            getFiles.write_file(content, filename, date)
+                            succDnLds += 1
+                            print ("%s of %s files have downloaded and saved") %(succDnLds, len(addedFileIDs))
+                        except Exception as e:
+                            print e
+
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         #print send_email(message)

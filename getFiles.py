@@ -43,18 +43,14 @@ def download_file(service, download_url):
       File's content if successful, None otherwise.
     """
     #download_url = drive_file.get('downloadUrl')
-    if download_url:
-        resp, content = service._http.request(download_url)
-        if resp.status == 200:
-            filename = resp['content-disposition'][resp['content-disposition'].find("=")+2:resp['content-disposition'].find('"',resp['content-disposition'].find("=")+2)]
-            filename = urllib.unquote(filename.encode("utf8"))
-            return content, filename
-        else:
-            print 'An error occurred: %s' % resp
-            return None
+    resp, content = service._http.request(download_url)
+    if resp.status == 200:
+        filename = resp['content-disposition'][resp['content-disposition'].find("=")+2:resp['content-disposition'].find('"',resp['content-disposition'].find("=")+2)]
+        filename = urllib.unquote(filename.encode("utf8"))
+        return content, filename
     else:
-        # The file doesn't have any content stored on Drive.
-        return "The file doesn't have any content stored on Drive."
+        raise 'An error occurred: %s' % resp
+        return None
 
 def get_export_link(fileJSON):
     """Get the exportLink value from the file object
@@ -84,7 +80,11 @@ def get_download_url(fileJSON):
                 dFile = fileJSON['webContentLink']
                 return dFile
             except KeyError: # Some fileJSONs don't have a webContentLink...now we're screwed.
-                print "no download url found"
+                print "no download url found for %s" %(dFile['title'])
+                print "Here's some additional information for you:"
+
+                for i in dFile:
+                    print ("  %s is: %s" %(i, dFile[i]))
                 return None
 
 def ensure_dir(path):
