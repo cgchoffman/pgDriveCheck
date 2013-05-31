@@ -38,6 +38,9 @@ from oauth2client.tools import run
 from apiclient import errors
 
 
+logging.basicConfig(filename='PGbackups.log')
+logging.basicConfig(level=logging.DEBUG)
+
 def main():
 
     configFile      = "config.json"

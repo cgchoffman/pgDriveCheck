@@ -19,6 +19,10 @@ import urllib2
 import urllib
 import sys
 import os
+import logging
+
+logging.basicConfig(filename='PGbackups.log')
+logging.basicConfig(level=logging.DEBUG)
 # XXX I think auth might be timing out or something.  Downloads just failed
 # after 451 files.  never completed.  Completiong logic could be wrong too.
 def write_file(content, filename, date):
@@ -44,12 +48,15 @@ def download_file(service, download_url):
     """
     #download_url = drive_file.get('downloadUrl')
     resp, content = service._http.request(download_url)
+    filename = ""
     if resp.status == 200:
         filename = resp['content-disposition'][resp['content-disposition'].find("=")+2:resp['content-disposition'].find('"',resp['content-disposition'].find("=")+2)]
         filename = urllib.unquote(filename.encode("utf8"))
+        logging.debug("Downloaded %s successfully", filename)
         return content, filename
     else:
         raise 'An error occurred: %s' % resp
+        logging.warning("This message failed to download: %s", filename)
         return None
 
 def get_export_link(fileJSON):
@@ -69,23 +76,28 @@ def get_download_url(fileJSON):
     """ Get the link that can download the file
     """
     try:
-        dFile = get_export_link(fileJSON)
-        return dFile
-    except KeyError: # Some fileJSONs don't have an export link
-        try:
-            dFile = fileJSON['downloadUrl']
-            return dFile
-        except KeyError: # Some fileJSONs don't have a downloadUrl
-            try:
-                dFile = fileJSON['webContentLink']
-                return dFile
-            except KeyError: # Some fileJSONs don't have a webContentLink...now we're screwed.
-                print "no download url found for %s" %(dFile['title'])
-                print "Here's some additional information for you:"
+        return fileJSON.get('downloadUrl')
+    except Exception as e:
+        print e
 
-                for i in dFile:
-                    print ("  %s is: %s" %(i, dFile[i]))
-                return None
+    #try:
+    #    dFile = get_export_link(fileJSON)
+    #    return dFile
+    #except KeyError: # Some fileJSONs don't have an export link
+    #    try:
+    #        dFile = fileJSON['downloadUrl']
+    #        return dFile
+    #    except KeyError: # Some fileJSONs don't have a downloadUrl
+    #        try:
+    #            dFile = fileJSON['webContentLink']
+    #            return dFile
+    #        except KeyError: # Some fileJSONs don't have a webContentLink...now we're screwed.
+    #            print "no download url found for %s" %(fileJSON['title'])
+    #            print "Here's some additional information for you:"
+    #
+    #            for i in fileJSON:
+    #                print ("  %s is: %s" %(i,fileJSON[i]))
+    #            return None
 
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to
