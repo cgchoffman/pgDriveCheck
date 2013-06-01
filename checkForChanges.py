@@ -96,11 +96,12 @@ def perform_check(configData, date):
     try:
         # reload previous data from store JSON
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
+        return 0
     except:
         message = "Could not load archived meta data.  Recover a backup."
-        #send_email(message, configData)
+        send_email(message, configData, 1)
         print (message)
-        return 0
+        return 1
 
     # Creat list of folder ids for currentGDriveState and archivedGDriveState
     currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
@@ -114,8 +115,9 @@ def perform_check(configData, date):
     # Must check both directions just incase one is empty
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
         import os.path, time
-        message = "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
-        #print send_email(message)
+        message = "PeaceGeeks Google Drive auditor ran successfully:\n"
+        message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
+        send_email(message, configData, 0)
         print (message)
 
     else:
@@ -143,8 +145,8 @@ def perform_check(configData, date):
 
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
-        #print send_email(message)
-        print (message)
+        send_email(message, configData, 0)
+        logging.info(message)
 
     # don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
@@ -153,8 +155,8 @@ def perform_check(configData, date):
         #create_json_file_from_meta(currentGDriveState)
     except Exception as e:
         print (e)
-        #print send_email(message)
-        #print (message)
+        send_email("Could not create", configData, 1)
+        logging.error(message)
         return 1
 
     return 0
@@ -164,7 +166,7 @@ def get_Share_Peace_Id(folderData):
     geekFolderIds = []
     for item in folderData:
         if item['title'] == "Shared PeaceGeeks" or item['title'] == "PeaceGeeks Drive":
-            geekFolderIds.append(item['id'])
+            geekFolderIds.append(item.get('id'))
             folderData.remove(item)
             break
     return set(geekFolderIds)
@@ -240,13 +242,20 @@ def generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveS
     get_title_owner(message, addedFileIDs, currentGDriveState)
     return message
 
-def send_email(message, configData):
-    SERVER = "localhost"
-    FROM = configData["FROM"]
-    #This needs to be able to change TO location
-    TO = configData["TOREPORT"]
+def send_email(message, configData, error):
+    """Sends an email reporting a message of success or failure of the script.
+       if error is true then the email is sent to it.  If error is false is sent
+       to peacegeeks admin."""
+    if error:
+        #This needs to be able to change TO location
+        TO = configData['TOERROR']
+    else:
+        #This needs to be able to change TO location
+        TO = configData["TOREPORT"]
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
+    SERVER = "localhost"
+    FROM = configData["FROM"]
     SUBJECT = "PeaceGeeks Server - Google Drive Report"
     TEXT = message
     email = "From: %s\nTo: %s\nSubject: %s\n%s" %(FROM, ", ".join(TO),SUBJECT,TEXT)
