@@ -21,8 +21,8 @@ import sys
 import os
 import logging
 
-logging.basicConfig(filename='PGbackups.log')
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(filename='PGbackups.log')
+#logging.basicConfig(level=logging.DEBUG)
 # XXX I think auth might be timing out or something.  Downloads just failed
 # after 451 files.  never completed.  Completiong logic could be wrong too.
 def write_file(content, filename, date):
@@ -79,6 +79,13 @@ def get_download_url(fileJSON):
         return fileJSON.get('downloadUrl')
     except Exception as e:
         print e
+        print "no download url found for %s" %(fileJSON['title'])
+        print "Here's some additional information for you:"
+
+        for i in fileJSON:
+            print ("  %s is: %s" %(i,fileJSON[i]))
+        return None
+        logging.warning("Could not download %s.", fileJSON['title'])
 
     #try:
     #    dFile = get_export_link(fileJSON)

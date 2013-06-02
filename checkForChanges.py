@@ -14,8 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# XXX have a look at https://developers.google.com/drive/v2/reference/changes/list
-# for methods to use from Google Drive.
 import getFiles
 
 import httplib2
@@ -38,19 +36,21 @@ from oauth2client.tools import run
 from apiclient import errors
 
 
-logging.basicConfig(filename='PGbackups.log')
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(format='[%(asctime)-15s]: %(funcName)s:  %(message)s',
+                    filemode='w', filename='PGbackups.log', level=logging.DEBUG)
+#logging.basicConfig()
 
 def main():
-
     configFile      = "config.json"
     defaultRunLimit = 3
     repeatSafety    = 0
     date            = datetime.now().strftime("%Y-%m-%d-%H-%M")
     try:
         configData = load_json_file(configFile)
+        logging.debug("configuration data loaded")
     except :
         print "There was an error loading the config file."
+        logging.error("Failed to load configuration data.  Exiting.")
         return
     try:
         # Check for args pass in when script was started or use default
@@ -59,44 +59,63 @@ def main():
             # Check that a number was passed in as an agruement and nothing else
             sys.argv[1] += 1
         except TypeError:
+            logging.warn("Bad value passed to script: %s is not an int") %(sys.argv[1])
             print ("Passed in something other than a number as an option with the script.  Use a number please.")
             print ("\"$ python %s 10\" \nwill run the %s script 10 times (it's actually more than that :)") %(sys.argv[0], sys.argv[0])
-            return 1
+            raise
     except IndexError:
         print ("No run time loop limit given on script start.  Using default of %s") %defaultRunLimit
+        logging.info("No run limit given.  Using default, %s", defaultRunLimit)
         runLimit = defaultRunLimit
 
     # Check for changes
+    logging.debug("Performing first loop through check.")
     while (perform_check(configData, date)):
         if repeatSafety <= runLimit:
+            logging.WARN("Failed check.  Peforming loop %s", repeatSafety)
             perform_check(configData)
             repeatSafety += 1
         else:
+            logging.info("Run limit hit.  Exiting.")
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
             break
     print "We're all done here.  Make sure nothing went wrong."
+    logging.info("Check completed successfully.  Exiting.")
 
 def perform_check(configData, date):
     # Retrieve current data from google drive
-    credentials                  = get_credentials(configData)
-    service                      = get_service(credentials)
-    currentGDriveState           = retrieve_all_meta(service)
-
-    # Check that the currentGDriveState was created
-    if None == currentGDriveState:
-        print "An error occurred while retrieving the data for your files."
-        print "Checking State of variables.  True means variable exists."
-        print "Service State: %s" %(service != None)
-        print "Credentials State: %s" %(credentials != None)
-        print "Current Meta Data: %s" %( currentFileIDs != None)
-        print "If they are all true and it's still failing, you might need to dig more."
+    try:
+        credentials = get_credentials(configData)
+    except Exception as e:
+        logging.error("Failed to retrieve Credentials.\nERROR: %s", e)
         return 1
 
+    try:
+        service = get_service(credentials)
+    except Exception as e:
+        logging.error("Failed to retrieve Service.\n ERROR: %s", e)
+        return 1
+
+    try:
+        currentGDriveState = retrieve_all_meta(service)
+        logging.info("File meta data retrieved from Google successfully.")
+    except Exception as e:
+        message = """An error occurred while retrieving the data for your files.
+                    Checking State of variables.  True means variable exists.\n"""
+        message += "Service State: %s\n" %(service != None)
+        message += "Credentials State: %s\n" %(credentials != None)
+        message += "Current Meta Data: %s\n" %( currentFileIDs != None)
+        message += """If they are all true and it's still failing, you might
+                    need to dig more.\n"""
+        message += "ERROR: %s" %e
+        logging.error(message)
+        return 1
+    logging.debug("Starting drive check.")
+    # Check that the currentGDriveState was created
     archivedGDriveStateFilename  = "fileMetaData.json"
     try:
         # reload previous data from store JSON
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
-        return 0
     except:
         message = "Could not load archived meta data.  Recover a backup."
         send_email(message, configData, 1)
@@ -300,6 +319,7 @@ def get_credentials(configData):
     # which updates the credentials.dat file.
     if credentials is None or credentials.invalid:
         credentials = run(flow, storage)
+    logging.debug("Credentials retrieved successfully.")
     return credentials
 
 def get_service(credentials):
@@ -316,10 +336,10 @@ def get_service(credentials):
     #   authorized httplib2.Http() object that can be used for API calls
     try:
         service = build('drive', 'v2', http=http)
+        logging.debug("Service retrieved successfully from Google.")
     except httplib2.ServerNotFoundError, httpError:
-        print "An error occurred attempting to connect to your Google Drive. \n",\
-        "Check that you are conntected to the internet.", httpError
-        return
+        raise ("An error occurred attempting to connect to your Google Drive. \n",
+        "Check that you are conntected to the internet.", httpError)
     return service
 
 def retrieve_all_meta(service):
@@ -345,10 +365,11 @@ def retrieve_all_meta(service):
                 if not page_token:
                     break
             except errors.HttpError, error:
-                print 'An error occurred: %s' %error
+                raise 'An error occurred: %s' %error
                 break
     else:
-        print "Could not create service."
+        raise "Service is None"
+    logging.debug("Archived drive state loaded successfully.")
     return result
 
 def create_json_file_from_meta(stateJSON):
