@@ -38,9 +38,9 @@ from apiclient import errors
 
 logging.basicConfig(format='[%(asctime)-15s]: %(funcName)s:  %(message)s',
                     filemode='w', filename='PGbackups.log', level=logging.DEBUG)
-#logging.basicConfig()
 
 def main():
+    logging.info("PeaceGeeks Google Drive auditor starting.")
     configFile      = "config.json"
     defaultRunLimit = 3
     repeatSafety    = 0
@@ -116,32 +116,51 @@ def perform_check(configData, date):
     try:
         # reload previous data from store JSON
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
-    except:
-        message = "Could not load archived meta data.  Recover a backup."
-        send_email(message, configData, 1)
-        print (message)
-        return 1
+        logging.debug("Archived data retrieved.")
+    except Exception as e:
+        message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
+        try:
+            send_email(message, configData, 0)
+            logging.error(message)
+        except Exception as e:
+            message = "Failed to send \"No recovery backup files\" email. %s %s"
+            logging.error(message, "ERROR: ", e)
+        finally:
+            return 1
 
     # Creat list of folder ids for currentGDriveState and archivedGDriveState
     currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
+    logging.debug("Current folder ID set retrieved.")
     archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
+    logging.debug("Archived folder ID set retrieved.")
 
     # Create sets out of the file IDs from archivedGDriveState and currentGDriveState that have
     # ids in the currentGDriveStateFolderIds list and archivedGDriveStateFolderIds list
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
+    logging.debug("Current file ID set retrieved.")
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
+    logging.debug("Archived file ID set retrieved.")
 
     # Must check both directions just incase one is empty
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
         import os.path, time
         message = "PeaceGeeks Google Drive auditor ran successfully:\n"
         message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
-        send_email(message, configData, 0)
+        try:
+            send_email(message, configData, 0)
+            logging.info("\"No updates needed.\" email sent.")
+        except Exception as e:
+            message = "Failed to send \"No updates needed.\" email. %s %s"
+            logging.error(message, "ERROR: ", e)
+
         print (message)
 
     else:
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
+        logging.debug("Retrieved set of removed file IDs.")
         addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
+        logging.debug("Retrieved set of added file IDs.")
+
 
     #  Download added Files
         import getFiles
@@ -162,7 +181,11 @@ def perform_check(configData, date):
         logging.info("%s of %s files have downloaded and saved", succDnLds, len(addedFileIDs))
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
-        send_email(message, configData, 0)
+        try:
+            send_email(message, configData, 0)
+        except Exception as e:
+            message = "\Failed to send Auditor report email.  Error: %s"
+            logging.error(message, e)
         logging.info(message)
 
     # don't create the json file yet or else you overwrite the check file.
@@ -172,7 +195,13 @@ def perform_check(configData, date):
         #create_json_file_from_meta(currentGDriveState)
     except Exception as e:
         print (e)
-        send_email("Could not create", configData, 1)
+        message = "Could not create archive file of current state. Error: %s" %e
+        try:
+            send_email(message, configData, 0)
+            logging.error(message)
+        except Exception as e:
+            message = "Failed to send \"Could not create new archive\" email %s %s"
+            logging.error(message, "ERROR: ", e)
         logging.error(message)
         return 1
 
@@ -261,7 +290,7 @@ def generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveS
 
 def send_email(message, configData, error):
     """Sends an email reporting a message of success or failure of the script.
-       if error is true then the email is sent to it.  If error is false is sent
+       If error is true then the email is sent to it.  If error is false is sent
        to peacegeeks admin."""
     if error:
         #This needs to be able to change TO location
