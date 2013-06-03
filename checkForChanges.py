@@ -71,6 +71,7 @@ def main():
     # Check for changes
     logging.debug("Performing first loop through check.")
     while (perform_check(configData, date)):
+        failed = False
         if repeatSafety <= runLimit:
             logging.WARN("Failed check.  Peforming loop %s", repeatSafety)
             perform_check(configData)
@@ -78,9 +79,12 @@ def main():
         else:
             logging.info("Run limit hit.  Exiting.")
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
+            failed = True
             break
-    print "We're all done here.  Make sure nothing went wrong."
-    logging.info("Check completed successfully.  Exiting.")
+    if failed:
+        logging.error("The script failed.  Please check the logs.")
+    else:
+        logging.info("We're all done here.  Make sure nothing went wrong.")
 
 def perform_check(configData, date):
     # Retrieve current data from google drive
@@ -104,7 +108,7 @@ def perform_check(configData, date):
                     Checking State of variables.  True means variable exists.\n"""
         message += "Service State: %s\n" %(service != None)
         message += "Credentials State: %s\n" %(credentials != None)
-        message += "Current Meta Data: %s\n" %( currentFileIDs != None)
+        message += "Current Meta Data: %s\n" %(currentGDriveState != None)
         message += """If they are all true and it's still failing, you might
                     need to dig more.\n"""
         message += "ERROR: %s" %e
@@ -174,6 +178,7 @@ def perform_check(configData, date):
                             content, filename = getFiles.download_file(service, dFile)
                             getFiles.write_file(content, filename, date)
                             succDnLds += 1
+                            logging.debug("Downloading %s of %s", succDnLds, len(addedFileIDs))
                         except Exception as e:
                             logging.error("""Failed to download or write the file.
                                           \nERROR: %s""", e)
@@ -182,10 +187,11 @@ def perform_check(configData, date):
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         try:
+            message.encode('utf-8')
             send_email(message, configData, 0)
         except Exception as e:
-            message = "\Failed to send Auditor report email.  Error: %s"
-            logging.error(message, e)
+            message = "Failed to send Auditor report email.  Error: %s" %e
+            logging.error(message)
         logging.info(message)
 
     # don't create the json file yet or else you overwrite the check file.

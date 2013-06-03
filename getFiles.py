@@ -47,6 +47,7 @@ def download_file(service, download_url):
       File's content if successful, None otherwise.
     """
     #download_url = drive_file.get('downloadUrl')
+    logging.debug("Starting download of %s", filename)
     resp, content = service._http.request(download_url)
     filename = ""
     if resp.status == 200:
