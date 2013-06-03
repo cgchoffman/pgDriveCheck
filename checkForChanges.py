@@ -144,22 +144,22 @@ def perform_check(configData, date):
         addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
 
     #  Download added Files
-        #import getFiles
-        #succDnLds = 0
-        #for GDriveObject in currentGDriveState:
-        #    if GDriveObject['mimeType'].find('folder') == -1:
-        #        if GDriveObject['id'] in addedFileIDs:
-        #            dFile = getFiles.get_download_url(GDriveObject)
-        #            if dFile != None:
-        #                try:
-        #                    content, filename = getFiles.download_file(service, dFile)
-        #                    getFiles.write_file(content, filename, date)
-        #                    succDnLds += 1
-        #                except Exception as e:
-        #                    logging.error("""Failed to download or write the file.
-        #                                  \nERROR: %s""", e)
-        #print ("%s of %s files have downloaded and saved") %(succDnLds, len(addedFileIDs))
-        #logging.info("%s of %s files have downloaded and saved", succDnLds, len(addedFileIDs))
+        import getFiles
+        succDnLds = 0
+        for GDriveObject in currentGDriveState:
+            if GDriveObject['mimeType'].find('folder') == -1:
+                if GDriveObject['id'] in addedFileIDs:
+                    dFile = getFiles.get_download_url(GDriveObject)
+                    if dFile != None:
+                        try:
+                            content, filename = getFiles.download_file(service, dFile)
+                            getFiles.write_file(content, filename, date)
+                            succDnLds += 1
+                        except Exception as e:
+                            logging.error("""Failed to download or write the file.
+                                          \nERROR: %s""", e)
+        print ("%s of %s files have downloaded and saved") %(succDnLds, len(addedFileIDs))
+        logging.info("%s of %s files have downloaded and saved", succDnLds, len(addedFileIDs))
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         send_email(message, configData, 0)
