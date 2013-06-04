@@ -47,11 +47,11 @@ def download_file(service, download_url):
       File's content if successful, None otherwise.
     """
     #download_url = drive_file.get('downloadUrl')
-    logging.debug("Starting download of %s", filename)
     resp, content = service._http.request(download_url)
     filename = ""
     if resp.status == 200:
         filename = resp['content-disposition'][resp['content-disposition'].find("=")+2:resp['content-disposition'].find('"',resp['content-disposition'].find("=")+2)]
+        logging.debug("Starting download of %s", filename)
         filename = urllib.unquote(filename.encode("utf8"))
         logging.debug("Downloaded %s successfully", filename)
         return content, filename

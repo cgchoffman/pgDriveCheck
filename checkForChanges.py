@@ -70,7 +70,6 @@ def main():
 
     # Check for changes
     logging.debug("Performing first loop through check.")
-    failed = False
     while (perform_check(configData, date)):
         if repeatSafety <= runLimit:
             logging.WARN("Failed check.  Peforming loop %s", repeatSafety)
@@ -79,12 +78,9 @@ def main():
         else:
             logging.info("Run limit hit.  Exiting.")
             print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
-            failed = True
             break
-    if failed:
-        logging.error("The script failed.  Please check the logs.")
-    else:
-        logging.info("We're all done here.  Make sure nothing went wrong.")
+        print ("We're all done here.  Make sure nothing went wrong in the logs.")
+        logging.info("We're all done here.  Make sure nothing went wrong in the logs.")
 
 def perform_check(configData, date):
     # Retrieve current data from google drive
@@ -187,7 +183,7 @@ def perform_check(configData, date):
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         try:
-            message.encode('utf-8')
+            message
             send_email(message, configData, 0)
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
@@ -309,8 +305,7 @@ def send_email(message, configData, error):
     SERVER = "localhost"
     FROM = configData["FROM"]
     SUBJECT = "PeaceGeeks Server - Google Drive Report"
-    TEXT = message
-    email = "From: %s\nTo: %s\nSubject: %s\n%s" %(FROM, ", ".join(TO),SUBJECT,TEXT)
+    email = "From: %s\nTo: %s\nSubject: %s\n%s" %(FROM, ", ".join(TO),SUBJECT,message)
     server = smtplib.SMTP(SERVER)
     server.sendmail(FROM,TO,email)
     return email
