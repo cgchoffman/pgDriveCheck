@@ -70,8 +70,8 @@ def main():
 
     # Check for changes
     logging.debug("Performing first loop through check.")
+    failed = False
     while (perform_check(configData, date)):
-        failed = False
         if repeatSafety <= runLimit:
             logging.WARN("Failed check.  Peforming loop %s", repeatSafety)
             perform_check(configData)
