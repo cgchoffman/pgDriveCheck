@@ -36,8 +36,8 @@ from oauth2client.tools import run
 from apiclient import errors
 
 #So the logs are created with the running script
-#scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
-scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
+scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
+#scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
 logging.basicConfig(format='[%(asctime)-15s]: %(funcName)s:  %(message)s',
                     filemode='w', filename=loghome, level=logging.INFO)
