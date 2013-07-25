@@ -32,7 +32,8 @@ def write_file(content, filename, date):
     ensure_dir(path)
     # append filename to path
     path = os.path.join(path, filename)
-    with open(path, 'w') as dst:
+    #XXX added 'b' option to help handling of binary files like pitures
+    with open(path, 'wb') as dst:
         dst.write(content)
 
 
@@ -63,8 +64,7 @@ def download_file(service, download_url):
 def get_export_link(fileJSON):
     """Get the exportLink value from the file object
     Not all fileJSON objects have an exportLink it seems
-    This function could be hidden but i dunno how :(  I learn later.  No
-    internets right now."""
+    """
 
     fileName = fileJSON['title']
     ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns fileJSON extension

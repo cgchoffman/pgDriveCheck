@@ -35,22 +35,28 @@ from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.tools import run
 from apiclient import errors
 
-
+#So the logs are created with the running script
+#scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
+scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
+loghome = os.path.join(scripthome, "PGbackups.log")
 logging.basicConfig(format='[%(asctime)-15s]: %(funcName)s:  %(message)s',
-                    filemode='w', filename='PGbackups.log', level=logging.DEBUG)
+                    filemode='w', filename=loghome, level=logging.INFO)
 
 def main():
     logging.info("PeaceGeeks Google Drive auditor starting.")
     configFile      = "config.json"
+    # XXX this should not be be using a hardcoded name
+    configFile      = os.path.join(scripthome, configFile)
     defaultRunLimit = 3
     repeatSafety    = 0
     date            = datetime.now().strftime("%Y-%m-%d-%H-%M")
     try:
         configData = load_json_file(configFile)
         logging.debug("configuration data loaded")
-    except :
-        print "There was an error loading the config file."
-        logging.error("Failed to load configuration data.  Exiting.")
+        print("configuration data loaded")
+    except Exception as e:
+        print "There was an error loading the config file.\n  ERROR: %s" %e
+        logging.error("Failed to load configuration data.  Exiting. %s", e)
         return
     try:
         # Check for args pass in when script was started or use default
@@ -59,7 +65,7 @@ def main():
             # Check that a number was passed in as an agruement and nothing else
             sys.argv[1] += 1
         except TypeError:
-            logging.warn("Bad value passed to script: %s is not an int") %(sys.argv[1])
+            logging.warn("Bad value passed to script: %s is not an int", sys.argv[1])
             print ("Passed in something other than a number as an option with the script.  Use a number please.")
             print ("\"$ python %s 10\" \nwill run the %s script 10 times (it's actually more than that :)") %(sys.argv[0], sys.argv[0])
             raise
@@ -86,12 +92,14 @@ def perform_check(configData, date):
     # Retrieve current data from google drive
     try:
         credentials = get_credentials(configData)
+        print("Retrieved credentials successfully")
     except Exception as e:
         logging.error("Failed to retrieve Credentials.\nERROR: %s", e)
         return 1
 
     try:
         service = get_service(credentials)
+        print("Retrieved credentials successfully")
     except Exception as e:
         logging.error("Failed to retrieve Service.\n ERROR: %s", e)
         return 1
@@ -104,7 +112,6 @@ def perform_check(configData, date):
                     Checking State of variables.  True means variable exists.\n"""
         message += "Service State: %s\n" %(service != None)
         message += "Credentials State: %s\n" %(credentials != None)
-        message += "Current Meta Data: %s\n" %(currentGDriveState != None)
         message += """If they are all true and it's still failing, you might
                     need to dig more.\n"""
         message += "ERROR: %s" %e
@@ -299,11 +306,11 @@ def send_email(message, configData, error):
         TO = configData['TOERROR']
     else:
         #This needs to be able to change TO location
-        TO = configData["TOREPORT"]
+        TO = configData['TOREPORT']
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
     SERVER = "localhost"
-    FROM = configData["FROM"]
+    FROM = configData['FROM']
     SUBJECT = "PeaceGeeks Server - Google Drive Report"
     email = "From: %s\nTo: %s\nSubject: %s\n%s" %(FROM, ", ".join(TO),SUBJECT,message)
     server = smtplib.SMTP(SERVER)
@@ -318,20 +325,21 @@ def load_json_file(jsonFile):
 
 def get_credentials(configData):
     #Could prompt for these credentials later.
-    client_id     = configData["CLIENTID"]
+    client_id = configData["CLIENTID"]
     client_secret = configData["CLIENTSECRET"]
     # The scope URL for read/write access to a user's calendar data
     scope         = 'https://www.googleapis.com/auth/drive.readonly'
     # Create a flow object. This object holds the client_id, client_secret, and
     # scope. It assists with OAuth 2.0 steps to get user authorization and
     # credentials.
-    flow          = OAuth2WebServerFlow(client_id, client_secret, scope)
+    flow = OAuth2WebServerFlow(client_id, client_secret, scope)
     # Create a Storage object. This object holds the credentials that your
     # application needs to authorize access to the user's data. The name of the
     # credentials file is provided. If the file does not exist, it is
     # created. This object can only hold credentials for a single user, so
     # as-written, this script can only handle a single user.
-    storage = Storage('credentials.dat')
+    creds = os.path.join(scripthome,'credentials.dat')
+    storage = Storage(creds)
 
     # The get() function returns the credentials for the Storage object. If no
     # credentials were found, None is returned.
@@ -347,7 +355,7 @@ def get_credentials(configData):
     # which updates the credentials.dat file.
     if credentials is None or credentials.invalid:
         credentials = run(flow, storage)
-    logging.debug("Credentials retrieved successfully.")
+        logging.debug("Credentials retrieved successfully.")
     return credentials
 
 def get_service(credentials):
@@ -366,6 +374,7 @@ def get_service(credentials):
         service = build('drive', 'v2', http=http)
         logging.debug("Service retrieved successfully from Google.")
     except httplib2.ServerNotFoundError, httpError:
+        # XXX this raise doesnt work at all
         raise ("An error occurred attempting to connect to your Google Drive. \n",
         "Check that you are conntected to the internet.", httpError)
     return service
@@ -377,6 +386,11 @@ def retrieve_all_meta(service):
       service: Drive API service instance.
     Returns:
       List of File resources.
+
+    XXX:
+    Change this to files.list from the google drive api?  You can use the Google
+    Drive suggest of drive_file.get('downloadUrl') since download url doesn't
+    exist most of the time in the format I currently have.
     """
     if service:
         result = []
