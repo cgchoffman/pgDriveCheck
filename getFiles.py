@@ -21,10 +21,18 @@ import sys
 import os
 import logging
 
-#logging.basicConfig(filename='PGbackups.log')
-#logging.basicConfig(level=logging.DEBUG)
-# XXX I think auth might be timing out or something.  Downloads just failed
-# after 451 files.  never completed.  Completiong logic could be wrong too.
+#So the logs are created with the running script
+# below is live on in house backups
+#scripthome =  os.path.join(os.getenv('HOME'), "GoogleBackups")
+# below is running at my home computer...so testing
+#scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
+# running in test mode at pg inhouse backups
+scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
+loghome = os.path.join(scripthome, "PGbackups.log")
+logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s',
+                    filename=loghome, level=logging.INFO)
+logger = logging.getLogger('PG-Backup')
+
 def write_file(content, filename, date):
     # 'home' should work on any platform.  OSX not checked.
     home = os.getenv('USERPROFILE') or os.getenv('HOME')
@@ -33,8 +41,12 @@ def write_file(content, filename, date):
     # append filename to path
     path = os.path.join(path, filename)
     #XXX added 'b' option to help handling of binary files like pitures
-    with open(path, 'wb') as dst:
-        dst.write(content)
+    try:
+        with open(path, 'wb') as dst:
+            dst.write(content)
+    except Exception as  e:
+        raise e
+    
 
 
 def download_file(service, download_url):
@@ -49,16 +61,14 @@ def download_file(service, download_url):
     """
     #download_url = drive_file.get('downloadUrl')
     resp, content = service._http.request(download_url)
-    filename = ""
     if resp.status == 200:
         filename = resp['content-disposition'][resp['content-disposition'].find("=")+2:resp['content-disposition'].find('"',resp['content-disposition'].find("=")+2)]
-        logging.debug("Starting download of %s", filename)
+        logger.debug("Starting download of %s", filename)
         filename = urllib.unquote(filename.encode("utf8"))
-        logging.debug("Downloaded %s successfully", filename)
+        logger.debug("Downloaded %s successfully", filename)
         return content, filename
     else:
-        raise 'An error occurred: %s' % resp
-        logging.warning("This message failed to download: %s", filename)
+        raise "File failed to download."
         return None
 
 def get_export_link(fileJSON):
@@ -86,26 +96,7 @@ def get_download_url(fileJSON):
         for i in fileJSON:
             print ("  %s is: %s" %(i,fileJSON[i]))
         return None
-        logging.warning("Could not download %s.", fileJSON['title'])
-
-    #try:
-    #    dFile = get_export_link(fileJSON)
-    #    return dFile
-    #except KeyError: # Some fileJSONs don't have an export link
-    #    try:
-    #        dFile = fileJSON['downloadUrl']
-    #        return dFile
-    #    except KeyError: # Some fileJSONs don't have a downloadUrl
-    #        try:
-    #            dFile = fileJSON['webContentLink']
-    #            return dFile
-    #        except KeyError: # Some fileJSONs don't have a webContentLink...now we're screwed.
-    #            print "no download url found for %s" %(fileJSON['title'])
-    #            print "Here's some additional information for you:"
-    #
-    #            for i in fileJSON:
-    #                print ("  %s is: %s" %(i,fileJSON[i]))
-    #            return None
+        logger.warning("Could not download %s.", fileJSON['title'])
 
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to

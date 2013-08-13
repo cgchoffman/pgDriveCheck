@@ -35,27 +35,34 @@ from oauth2client.tools import run
 from apiclient import errors
 
 #So the logs are created with the running script
+# below is live on in house backups
+#scripthome =  os.path.join(os.getenv('HOME'), "GoogleBackups")
+# below is running at my home computer...so testing
 #scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
+# running in test mode at pg inhouse backups
 scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
-logging.basicConfig(format='[%(asctime)-15s]: %(funcName)s:  %(message)s',
+logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s',
                     filemode='w', filename=loghome, level=logging.INFO)
+logger = logging.getLogger('PG-Backup')
+archivedGDriveStateFilename  = os.path.join(scripthome, "fileMeta.json")
 
 def main():
-    logging.info("PeaceGeeks Google Drive auditor starting.")
+    logger.info("PeaceGeeks Google Drive auditor starting.")
     configFile      = "config.json"
     # XXX this should not be be using a hardcoded name
     configFile      = os.path.join(scripthome, configFile)
     defaultRunLimit = 3
     repeatSafety    = 0
     date            = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    
     try:
         configData = load_json_file(configFile)
-        logging.debug("configuration data loaded")
+        logger.debug("configuration data loaded")
         print("configuration data loaded")
     except Exception as e:
         print "There was an error loading the config file.\n  ERROR: %s" %e
-        logging.error("Failed to load configuration data.  Exiting. %s", e)
+        logger.error("Failed to load configuration data.  Exiting. %s", e)
         return
     try:
         # Check for args pass in when script was started or use default
@@ -64,29 +71,30 @@ def main():
             # Check that a number was passed in as an agruement and nothing else
             sys.argv[1] += 1
         except TypeError:
-            logging.warn("Bad value passed to script: %s is not an int", sys.argv[1])
+            logger.warn("Bad value passed to script: %s is not an int", sys.argv[1])
             print ("Passed in something other than a number as an option with the script.  Use a number please.")
             print ("\"$ python %s 10\" \nwill run the %s script 10 times (it's actually more than that :)") %(sys.argv[0], sys.argv[0])
             raise
     except IndexError:
         print ("No run time loop limit given on script start.  Using default of %s") %defaultRunLimit
-        logging.info("No run limit given.  Using default, %s", defaultRunLimit)
+        logger.info("No run limit given.  Using default, %s", defaultRunLimit)
         runLimit = defaultRunLimit
 
     # Check for changes
-    logging.debug("Performing first loop through check.")
-    while (perform_check(configData, date)):
-        if repeatSafety <= runLimit:
-            logging.WARN("Failed check.  Peforming loop %s", str(repeatSafety))
-            perform_check(configData)
-            repeatSafety += 1
-        else:
-            logging.info("Run limit hit.  Exiting.")
-            print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
-            send_email("Drive Backups failed.  Please review log file.", configData, True)
+    logger.debug("Performing first loop through check.")
+    for repeatSafety in xrange(runLimit):
+        if perform_check(configData, date) == 0:
+            # This means it ran successfully so we don't need to do ANOTHER
+            # backup
             break
+        logger.WARN("Failed check.  Peforming loop %s", str(repeatSafety))
+        repeatSafety += 1
+    else:
+        logger.info("Run limit hit.  Exiting.")
+        print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
+        send_email("Drive Backups failed.  Please review log file.", configData, True)
     print ("We're all done here.  Make sure nothing went wrong in the logs.")
-    logging.info("We're all done here.  Make sure nothing went wrong in the logs.")
+    logger.info("We're all done here.  Make sure nothing went wrong in the logs.")
 
 def perform_check(configData, date):
     # Retrieve current data from google drive
@@ -94,59 +102,60 @@ def perform_check(configData, date):
         credentials = get_credentials(configData)
         print("Retrieved credentials config data successfully")
     except Exception as e:
-        logging.error("Failed to retrieve Credentials.\nERROR: %s", e)
+        logger.error("Failed to retrieve Credentials.\nERROR: %s", e)
         return 1
 
     try:
         service = get_service(credentials)
         print("Retrieved service from Google successfully")
     except Exception as e:
-        logging.error("Failed to retrieve Service.\n ERROR: %s", e)
+        logger.error("Failed to retrieve Service.\n ERROR: %s", e)
         return 1
 
     try:
         currentGDriveState = retrieve_all_meta(service)
-        logging.info("File meta data retrieved from Google successfully.")
+        logger.info("File meta data retrieved from Google successfully.")
     except Exception as e:
-        message = """An error occurred while retrieving the data for your files.
+        message = """An error occurred while retrieving the data for your files from Google.
                     Checking State of variables.  True means variable exists.\n"""
         message += "Service State: %s\n" %(service != None)
         message += "Credentials State: %s\n" %(credentials != None)
         message += """If they are all true and it's still failing, you might
                     need to dig more.\n"""
         message += "ERROR: %s" %e
-        logging.error(message)
+        logger.error(message)
+        send_email(message, configData, True)
         return 1
-    logging.debug("Starting drive check.")
+    logger.info("Starting drive check.")
     # Check that the currentGDriveState was created
-    archivedGDriveStateFilename  = "fileMetaData.json"
+    
     try:
         # reload previous data from store JSON
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
-        logging.debug("Archived data retrieved.")
+        logger.info("Archived data retrieved.")
     except Exception as e:
         message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
         try:
             send_email(message, configData, 0)
-            logging.error(message)
+            logger.error(message)
         except Exception as e:
             message = "Failed to send \"No recovery backup files\" email. %s %s"
-            logging.error(message, "ERROR: ", e)
+            logger.error(message, "ERROR: ", e)
         finally:
             return 1
 
     # Creat list of folder ids for currentGDriveState and archivedGDriveState
     currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
-    logging.debug("Current folder ID set retrieved.")
+    logger.debug("Current folder ID set retrieved.")
     archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
-    logging.debug("Archived folder ID set retrieved.")
+    logger.debug("Archived folder ID set retrieved.")
 
     # Create sets out of the file IDs from archivedGDriveState and currentGDriveState that have
     # ids in the currentGDriveStateFolderIds list and archivedGDriveStateFolderIds list
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
-    logging.debug("Current file ID set retrieved.")
+    logger.debug("Current file ID set retrieved.")
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
-    logging.debug("Archived file ID set retrieved.")
+    logger.debug("Archived file ID set retrieved.")
 
     # Must check both directions just incase one is empty
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
@@ -155,61 +164,68 @@ def perform_check(configData, date):
         message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
         try:
             send_email(message, configData, 0)
-            logging.info("\"No updates needed.\" email sent.")
+            logger.info("\"No updates needed.\" email sent.")
         except Exception as e:
             message = "Failed to send \"No updates needed.\" email. %s %s"
-            logging.error(message, "ERROR: ", e)
+            logger.error(message, "ERROR: ", e)
 
         print (message)
 
     else:
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
-        logging.debug("Retrieved set of removed file IDs.")
+        logger.debug("Retrieved set of removed file IDs.")
         addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
-        logging.debug("Retrieved set of added file IDs.")
+        logger.debug("Retrieved set of added file IDs.")
         #  Download added Files
         import getFiles
         succDnLds = 0
-        #for GDriveObject in currentGDriveState:
-        #    if GDriveObject['mimeType'].find('folder') == -1:
-        #        if GDriveObject['id'] in addedFileIDs:
-        #            dFile = getFiles.get_download_url(GDriveObject)
-        #            if dFile != None:
-        #                try:
-        #                    content, filename = getFiles.download_file(service, dFile)
-        #                    getFiles.write_file(content, filename, date)
-        #                    succDnLds += 1
-        #                    logging.debug("Downloading %s of %s", succDnLds, len(addedFileIDs))
-        #                except Exception as e:
-        #                    logging.error("""Failed to download or write the file.
-        #                                  \nERROR: %s""", e)
-        print ("%s of %s files have downloaded and saved") %(succDnLds, len(addedFileIDs))
-        logging.info("%s of %s files have downloaded and saved", succDnLds, len(addedFileIDs))
+        for GDriveObject in currentGDriveState:
+            if GDriveObject['mimeType'].find('folder') == -1:
+                # XXX This will be if added AND if changed
+                #if GDriveObject['id'] in addedFileIDs:
+                dFile = getFiles.get_download_url(GDriveObject)
+                if dFile != None:
+                    filename = ""
+                    content = ""
+                    try:
+                        content, filename = getFiles.download_file(service, dFile)
+                    except Exception as e:
+                        logger.error("%s: ERROR: %s", GDriveObject['title'], e)
+                    # if this failed filename will be blank and an error was logged in logs
+                    if filename != "":
+                        try:
+                            getFiles.write_file(content, filename, date)
+                            succDnLds += 1
+                            logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
+                        except Exception as e:
+                            logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
+        print ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
+        logger.info("%s of %s files have downloaded and saved", succDnLds, len(currentFileIDs))
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         try:
             message
-            send_email(message, configData, 0)
-            logging.info(message)
+            send_email(message, configData, False)
+            logger.info(message)
 
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
-            logging.error(message)
+            logger.error(message)
 
     # don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
     try:
+        #pass
         create_json_file_from_meta(currentGDriveState)
     except Exception as e:
         print (e)
         message = "Could not create archive file of current state. Error: %s" %e
         try:
             send_email(message, configData, 0)
-            logging.error(message)
+            logger.error(message)
         except Exception as e:
             message = "Failed to send \"Could not create new archive\" email %s %s"
-            logging.error(message, "ERROR: ", e)
-        logging.error(message)
+            logger.error(message, "ERROR: ", e)
         return 1
 
     return 0
@@ -305,7 +321,9 @@ def send_email(message, configData, error):
     #import email MIMEText to hold the unicode?  I guess
     import email.mime.text as text
     import email.mime.multipart as parts
-    email = parts.MIMEMultipart('alternative')
+    email = parts.MIMEMultipart()
+    
+    # Check if this is an email due to an error occurring.    
     if error:
         #This needs to be able to change TO location
         TO = configData['TOERROR']
@@ -313,25 +331,26 @@ def send_email(message, configData, error):
         #This needs to be able to change TO location
         TO = configData['TOREPORT']
     # Convert the Unicode objects to UTF-8 encoding
-    email['To'] = TO = [address.encode('utf-8') for address in TO]
-    
+    TO = [address.encode('utf-8') for address in TO]
+    email['To'] = ','.join(e for e in TO)
     email['From'] = FROM = configData['FROM']
-    email['Subject'] = SUBJECT = "PeaceGeeks Server - Google Drive Report"
-    # use the as_string() on the message to turn it into a byte string...I think
-    #email = "From: %s\nTo: %s\nSubject: %s\n%s" %(FROM, ", ".join(TO),SUBJECT,message.as_string())
+    email['Subject'] = "PeaceGeeks Server - Google Drive Report"
+    
     body = text.MIMEText(message, _charset='utf-8')
     email.attach(body)
-    f = open(loghome, 'r')
-    logFile = text.MIMEText(f.read(), _charset='utf-8')
+
+    # Attach log file to the email
     fname = os.path.basename(loghome)
-    logFile.add_header('Content-Disposition', 'attachment', filename=fname)           
-    email.attach(logFile)
+    attachFile = open(loghome, 'r')
+    attachFile = text.MIMEText(attachFile.read(), _charset='utf-8')
+    attachFile.add_header('Content-Disposition', 'attachment', filename=fname)           
+    email.attach(attachFile)
+    
     
     SERVER = "localhost"
     server = smtplib.SMTP(SERVER)
-    server.sendmail(FROM,TO,email)
+    server.sendmail(FROM, TO, email.as_string())
     server.quit()
-    return email
 
 def load_json_file(jsonFile):
     with open(jsonFile, 'r') as fileData:
@@ -371,7 +390,7 @@ def get_credentials(configData):
     # which updates the credentials.dat file.
     if credentials is None or credentials.invalid:
         credentials = run(flow, storage)
-        logging.debug("Credentials retrieved successfully.")
+        logger.debug("Credentials retrieved successfully.")
     return credentials
 
 def get_service(credentials):
@@ -388,7 +407,7 @@ def get_service(credentials):
     #   authorized httplib2.Http() object that can be used for API calls
     try:
         service = build('drive', 'v2', http=http)
-        logging.debug("Service retrieved successfully from Google.")
+        logger.debug("Service retrieved successfully from Google.")
     except httplib2.ServerNotFoundError, httpError:
         # XXX this raise doesnt work at all
         raise ("An error occurred attempting to connect to your Google Drive. \n",
@@ -427,12 +446,12 @@ def retrieve_all_meta(service):
                 break
     else:
         raise "Service is None"
-    logging.debug("Archived drive state loaded successfully.")
+    logger.debug("Archived drive state loaded successfully.")
     return result
 
 def create_json_file_from_meta(stateJSON):
     try:
-        filename = "fileMetaData.json"
+        filename = "archivedGDriveStateFilename"
         with open(filename, 'w') as dst:
             json.dump(stateJSON, dst)
             dst.close()
