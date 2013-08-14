@@ -35,7 +35,10 @@ def write_file(content, filename, date):
         with open(path, 'wb') as dst:
             dst.write(content)
     except Exception as  e:
-        raise e
+        logger.warning("Could not write file %s.", fileJSON['title'])
+        logger.warning("Error: %s", e)
+        # This error does not RAISE out of getFiles.
+        #raise e
     
 
 
@@ -58,20 +61,10 @@ def download_file(service, download_url):
         logger.debug("Downloaded %s successfully", filename)
         return content, filename
     else:
-        raise "File failed to download."
+        logger.warning("Could not download %s.", fileJSON['title'])
+        #This raise doesn't go ANYWHERE
+        #raise "File failed to download."
         return None
-
-def get_export_link(fileJSON):
-    """Get the exportLink value from the file object
-    Not all fileJSON objects have an exportLink it seems
-    """
-
-    fileName = fileJSON['title']
-    ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns fileJSON extension
-    for key in fileJSON['exportLinks']:
-        if fileJSON['exportLinks'][key].find('=%s'%ext)>-1:
-            return fileJSON['exportLinks'][key]
-    return fileJSON['exportLinks'].popitem()[1]
 
 def get_download_url(fileJSON):
     """ Get the link that can download the file
@@ -86,7 +79,7 @@ def get_download_url(fileJSON):
         for i in fileJSON:
             print ("  %s is: %s" %(i,fileJSON[i]))
         return None
-        logger.warning("Could not download %s.", fileJSON['title'])
+        
 
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to

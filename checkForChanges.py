@@ -38,7 +38,7 @@ from apiclient import errors
 scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
 #scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
-logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s',
+logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
 archivedGDriveStateFilename  = os.path.join(scripthome, "fileMeta.json")
@@ -186,7 +186,8 @@ def perform_check(configData, date):
                     try:
                         content, filename = getFiles.download_file(service, dFile)
                     except Exception as e:
-                        logger.error("%s: ERROR: %s", GDriveObject['title'], e)
+                        pass # until you fix the RAISE sissue in getFiles
+                        #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
                     # if this failed filename will be blank and an error was logged in logs
                     if filename != "":
                         try:
@@ -194,7 +195,9 @@ def perform_check(configData, date):
                             succDnLds += 1
                             logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                         except Exception as e:
-                            logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
+                            pass #until you figure out why the raise doesn't work
+                            #raise in getfile.
+                            #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
         print ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
         logger.info("%s of %s files have downloaded and saved", succDnLds, len(currentFileIDs))
 
