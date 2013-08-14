@@ -34,13 +34,9 @@ from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.tools import run
 from apiclient import errors
 
-#So the logs are created with the running script
-# below is live on in house backups
-#scripthome =  os.path.join(os.getenv('HOME'), "GoogleBackups")
 # below is running at my home computer...so testing
-#scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
-# running in test mode at pg inhouse backups
-scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
+scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
+#scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
 logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s',
                     filemode='w', filename=loghome, level=logging.INFO)

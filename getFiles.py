@@ -21,16 +21,6 @@ import sys
 import os
 import logging
 
-#So the logs are created with the running script
-# below is live on in house backups
-#scripthome =  os.path.join(os.getenv('HOME'), "GoogleBackups")
-# below is running at my home computer...so testing
-#scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
-# running in test mode at pg inhouse backups
-scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
-loghome = os.path.join(scripthome, "PGbackups.log")
-logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s',
-                    filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
 
 def write_file(content, filename, date):
