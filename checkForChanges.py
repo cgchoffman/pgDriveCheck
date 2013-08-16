@@ -38,7 +38,7 @@ from apiclient import errors
 scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
 #scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
-logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)',
+logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)s',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
 archivedGDriveStateFilename  = os.path.join(scripthome, "fileMeta.json")
@@ -83,7 +83,7 @@ def main():
             # This means it ran successfully so we don't need to do ANOTHER
             # backup
             break
-        logger.WARN("Failed check.  Peforming loop %s", str(repeatSafety))
+        logger.warn("Failed check.  Peforming loop %s", str(repeatSafety))
         repeatSafety += 1
     else:
         logger.info("Run limit hit.  Exiting.")
