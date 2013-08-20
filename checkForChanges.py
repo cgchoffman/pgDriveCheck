@@ -203,7 +203,6 @@ def perform_check(configData, date):
 
         message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
         try:
-            message
             send_email(message, configData, False)
             logger.info(message)
 
@@ -301,14 +300,16 @@ def get_title_owner(message, ids, state):
     for file in state:
         if file["id"] in ids:
             # convert owner names away from unicode to a byte string
+            filename = file["title"]
             owner = [name.encode("UTF-8") for name in file["ownerNames"]]
-            message += "File name: %s\nFile Owner: %s\n\n" %(file["title"], owner)
+            createdDate = file['createdDate']
+            message += "File name: %s\nFile Owner: %s\nCreated: %s\n\n" %(filename, owner, createdDate)
     return message
 
 def generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState):
-    message     = "=== Files Removed ===\n"
+    message = "=== Files Removed ===\n"
     message = get_title_owner(message, removedFileIDs, archivedGDriveState)
-    message     += "\n=== Files Added ===\n"
+    message += "\n=== Files Added ===\n"
     message = get_title_owner(message, addedFileIDs, currentGDriveState)
     return message
 
@@ -450,7 +451,7 @@ def retrieve_all_meta(service):
 
 def create_json_file_from_meta(stateJSON):
     try:
-        filename = "archivedGDriveStateFilename"
+        filename = archivedGDriveStateFilename
         with open(filename, 'w') as dst:
             json.dump(stateJSON, dst)
             dst.close()
