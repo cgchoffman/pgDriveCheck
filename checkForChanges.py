@@ -170,41 +170,50 @@ def perform_check(configData, date):
     else:
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
         logger.debug("Retrieved set of removed file IDs.")
-        addedFileIDs   = get_difference(currentFileIDs, archivedFileIDs)
+        addedFileIDs = get_difference(currentFileIDs, archivedFileIDs)
         logger.debug("Retrieved set of added file IDs.")
+        
+        reformatCurrent = reformatDrive(currentGDriveState, currentGDriveStateFolderIds)
+        reformatArchive = reformatDrive(archivedGDriveState, archivedGDriveStateFolderIds)
+        
+        modfiedFileIDs = getModifiedFiles(reformatCurrent, reformatArchive)
+        
         #  Download added Files
         import getFiles
         succDnLds = 0
         for GDriveObject in currentGDriveState:
-            if GDriveObject['mimeType'].find('folder') == -1:
-                # XXX This will be if added AND if changed
-                #if GDriveObject['id'] in addedFileIDs:
-                dFile = getFiles.get_download_url(GDriveObject)
-                if dFile != None:
-                    filename = ""
-                    content = ""
+            # XXX This will be if added or if changed
+            if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
+                dFile = {}
+                if getFiles.get_download_url(GDriveObject) != None:
+                    dFile = getFiles.get_download_url(GDriveObject)
+                else:
+                    dFile = getFiles.get_export_link(GDriveObject)
+                filename = ""
+                content = ""
+                try:
+                    content, filename = getFiles.download_file(service, dFile)
+                except Exception as e:
+                    pass # until you fix the RAISE sissue in getFiles
+                    #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
+                # if this failed filename will be blank and an error was logged in logs
+                if filename != "":
                     try:
-                        content, filename = getFiles.download_file(service, dFile)
+                        getFiles.write_file(content, filename, date)
+                        succDnLds += 1
+                        logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                     except Exception as e:
-                        pass # until you fix the RAISE sissue in getFiles
-                        #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
-                    # if this failed filename will be blank and an error was logged in logs
-                    if filename != "":
-                        try:
-                            getFiles.write_file(content, filename, date)
-                            succDnLds += 1
-                            logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
-                        except Exception as e:
-                            pass #until you figure out why the raise doesn't work
-                            #raise in getfile.
-                            #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
-        print ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
-        logger.info("%s of %s files have downloaded and saved", succDnLds, len(currentFileIDs))
-
-        message = generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState)
+                        pass #until you figure out why the raise doesn't work
+                        #raise in getfile.
+                        #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
+        downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
+        print (downloadsMessage)
+        message = generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modfiedFileIDs)
+        message += downloadsMessage
         try:
             send_email(message, configData, False)
             logger.info(message)
+            logger.info("%s of %s files have downloaded and saved", succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
 
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
@@ -306,11 +315,13 @@ def get_title_owner(message, ids, state):
             message += "File name: %s\nFile Owner: %s\nCreated: %s\n\n" %(filename, owner, createdDate)
     return message
 
-def generate_added_removed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState):
+def generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modifiedIDs):
     message = "=== Files Removed ===\n"
     message = get_title_owner(message, removedFileIDs, archivedGDriveState)
     message += "\n=== Files Added ===\n"
     message = get_title_owner(message, addedFileIDs, currentGDriveState)
+    message += "\n===Modfied Files===\n"
+    message = get_title_owner(message, modifiedIDs, currentGDriveState)
     return message
 
 def send_email(message, configData, error):
@@ -462,6 +473,25 @@ def create_json_file_from_meta(stateJSON):
     except:
         raise
 
+def getModifiedFiles(reformatCurrent, reformatArchive):
+    modifiedFiles = set([])
+    for item in reformatCurrent:
+        try:
+            reformatArchive[item]
+            if reformatArchive[item]["modifiedDate"] != reformatCurrent[item]["modifiedDate"]:
+                modifiedFiles.add(item)
+        except:
+            # Key must not be in reformatArchive so ignore
+            pass
+    return modifiedFiles
+    
+
+def reformatDrive(driveState, pgIDs):
+    newDrive = {}
+    for item in driveState:
+        if item["id"] in pgIDs:
+            newDrive[item["id"]] = {"modifiedDate" : item["modifiedDate"]}
+    return newDrive         
 
 if __name__ == '__main__':
     main()

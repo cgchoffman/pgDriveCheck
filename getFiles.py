@@ -79,7 +79,18 @@ def get_download_url(fileJSON):
         for i in fileJSON:
             print ("  %s is: %s" %(i,fileJSON[i]))
         return None
-        
+
+def get_export_link(file):
+    # Not all file objects have an exportLink it seems
+    fileName = file['title']    
+    ext =  fileName[len(fileName)-fileName[::-1].find('.'):] #returns file extension
+    print ext, fileName
+    exportLinks = file.get('exportLinks')
+    if exportLinks != None:
+        for key in file['exportLinks']:
+            if file['exportLinks'][key].find('=%s'%ext)>-1:
+                return file['exportLinks'][key]
+        return file['exportLinks'].popitem()[1]
 
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to
