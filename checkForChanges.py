@@ -41,6 +41,7 @@ loghome = os.path.join(scripthome, "PGbackups.log")
 logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)s',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
+#logger.setLevel("DEBUG")
 archivedGDriveStateFilename  = os.path.join(scripthome, "fileMeta.json")
 
 def main():
@@ -183,7 +184,8 @@ def perform_check(configData, date):
         succDnLds = 0
         for GDriveObject in currentGDriveState:
             # XXX This will be if added or if changed
-            if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
+            #if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
+            if GDriveObject['mimeType'].find('folder') == -1:
                 dFile = {}
                 if getFiles.get_download_url(GDriveObject) != None:
                     dFile = getFiles.get_download_url(GDriveObject)
@@ -206,15 +208,15 @@ def perform_check(configData, date):
                         pass #until you figure out why the raise doesn't work
                         #raise in getfile.
                         #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
-        downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
-        print (downloadsMessage)
+        #downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
+        downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
+        print(downloadsMessage)
         message = generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modfiedFileIDs)
         message += downloadsMessage
         try:
             send_email(message, configData, False)
             logger.info(message)
-            logger.info("%s of %s files have downloaded and saved", succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
-
+            logger.info(downloadsMessage)
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
             logger.error(message)
