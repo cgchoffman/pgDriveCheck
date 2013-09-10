@@ -184,32 +184,32 @@ def perform_check(configData, date):
         succDnLds = 0
         for GDriveObject in currentGDriveState:
             # XXX This will be if added or if changed
-            #if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
-            if GDriveObject['mimeType'].find('folder') == -1:
-                dFile = {}
-                if getFiles.get_download_url(GDriveObject) != None:
-                    dFile = getFiles.get_download_url(GDriveObject)
-                else:
-                    dFile = getFiles.get_export_link(GDriveObject)
-                filename = ""
-                content = ""
-                try:
-                    content, filename = getFiles.download_file(service, dFile)
-                except Exception as e:
-                    pass # until you fix the RAISE sissue in getFiles
-                    #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
-                # if this failed filename will be blank and an error was logged in logs
-                if filename != "":
+            if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
+                if GDriveObject['mimeType'].find('folder') == -1:
+                    dFile = {}
+                    if getFiles.get_download_url(GDriveObject) != None:
+                        dFile = getFiles.get_download_url(GDriveObject)
+                    else:
+                        dFile = getFiles.get_export_link(GDriveObject)
+                    filename = ""
+                    content = ""
                     try:
-                        getFiles.write_file(content, filename, date)
-                        succDnLds += 1
-                        logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
+                        content, filename = getFiles.download_file(service, dFile)
                     except Exception as e:
-                        pass #until you figure out why the raise doesn't work
-                        #raise in getfile.
-                        #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
-        #downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
-        downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
+                        pass # until you fix the RAISE sissue in getFiles
+                        #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
+                    # if this failed filename will be blank and an error was logged in logs
+                    if filename != "":
+                        try:
+                            getFiles.write_file(content, filename, date)
+                            succDnLds += 1
+                            logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
+                        except Exception as e:
+                            pass #until you figure out why the raise doesn't work
+                            #raise in getfile.
+                            #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
+        downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
+        #downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
         print(downloadsMessage)
         message = generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modfiedFileIDs)
         message += downloadsMessage
