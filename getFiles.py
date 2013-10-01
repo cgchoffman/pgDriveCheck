@@ -23,16 +23,16 @@ import logging
 
 logger = logging.getLogger('PG-Backup')
 
-def write_file(content, filename, date):
+def write_file(content, filename, datebackuppath):
     # 'home' should work on any platform.  OSX not checked.
-    home = os.getenv('USERPROFILE') or os.getenv('HOME')
-    path = os.path.join(home, "driveBackup", date)
-    ensure_dir(path)
+    #home = os.getenv('USERPROFILE') or os.getenv('HOME')
+    #path = os.path.join(home, "driveBackup", date)
+    ensure_dir(datebackuppath)
     # append filename to path
-    path = os.path.join(path, filename)
+    filepath = os.path.join(datebackuppath, filename)
     #XXX added 'b' option to help handling of binary files like pitures
     try:
-        with open(path, 'wb') as dst:
+        with open(filepath, 'wb') as dst:
             dst.write(content)
     except Exception as  e:
         logger.warning("Could not write file %s.", fileJSON['title'])

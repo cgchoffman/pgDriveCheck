@@ -38,6 +38,11 @@ from apiclient import errors
 scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
 #scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
 loghome = os.path.join(scripthome, "PGbackups.log")
+home = os.getenv('USERPROFILE') or os.getenv('HOME')
+backuppath = os.path.join(home, "driveBackup")
+corepath = os.path.join(backuppath,"core")
+date = datetime.now().strftime("%Y-%m-%d-%H-%M")
+datebackuppath = os.path.join(backuppath, date)
 logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)s',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
@@ -51,7 +56,7 @@ def main():
     configFile      = os.path.join(scripthome, configFile)
     defaultRunLimit = 3
     repeatSafety    = 0
-    date            = datetime.now().strftime("%Y-%m-%d-%H-%M")
+    
     
     try:
         configData = load_json_file(configFile)
@@ -80,7 +85,7 @@ def main():
     # Check for changes
     logger.debug("Performing first loop through check.")
     for repeatSafety in xrange(runLimit):
-        if perform_check(configData, date) == 0:
+        if perform_check(configData, datebackuppath) == 0:
             # This means it ran successfully so we don't need to do ANOTHER
             # backup
             break
@@ -93,7 +98,7 @@ def main():
     print ("We're all done here.  Make sure nothing went wrong in the logs.")
     logger.info("We're all done here.  Make sure nothing went wrong in the logs.")
 
-def perform_check(configData, date):
+def perform_check(configData, datebackuppath):
     # Retrieve current data from google drive
     try:
         credentials = get_credentials(configData)
@@ -201,7 +206,7 @@ def perform_check(configData, date):
                     # if this failed filename will be blank and an error was logged in logs
                     if filename != "":
                         try:
-                            getFiles.write_file(content, filename, date)
+                            getFiles.write_file(content, filename, datebackuppath)
                             succDnLds += 1
                             logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                         except Exception as e:
@@ -220,7 +225,20 @@ def perform_check(configData, date):
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
             logger.error(message)
-
+        try:
+            rsync = "rsync -av %s/ %s" % (datebackuppath, corepath)
+            os.system(rsync)
+        except Exception as e:
+            message = "Failed to rsync folders.  Error: %s" %e
+            logger.error(message)
+        try:
+            remove = "rm -r %s" % datebackuppath
+            os.system(remove)
+        except Exception as e:
+            message = "Failed to remove dated folder.  Error: %s" %e
+            logger.error(message)
+    
+    
     # don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
     try:
@@ -233,10 +251,10 @@ def perform_check(configData, date):
             send_email(message, configData, 0)
             logger.error(message)
         except Exception as e:
-            message = "Failed to send \"Could not create new archive\" email %s %s"
+            message = "Failed to send \"Could not create new archive\" email %s" % e
             logger.error(message, "ERROR: ", e)
         return 1
-
+    
     return 0
 
 #initially get the ID of Share PeaceGeeks folder
