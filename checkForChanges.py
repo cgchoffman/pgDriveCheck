@@ -225,15 +225,16 @@ def perform_check(configData, datebackuppath):
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
             logger.error(message)
+            from os import system as s
         try:
             rsync = "rsync -av %s/ %s" % (datebackuppath, corepath)
-            os.system(rsync)
+            s(rsync)
         except Exception as e:
             message = "Failed to rsync folders.  Error: %s" %e
             logger.error(message)
         try:
             remove = "rm -r %s" % datebackuppath
-            os.system(remove)
+            s(remove)
         except Exception as e:
             message = "Failed to remove dated folder.  Error: %s" %e
             logger.error(message)
