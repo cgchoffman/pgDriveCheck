@@ -1,29 +1,22 @@
 #!/usr/bin/env python
 # need to integrate this back into the code.
 # create email object then send_email()
-class pgEmail(message, logs, errEmailAddrList, reportEmailAddrList, sentFromAddr,
-              error):
+class pgEmail(errEmailAddrList, reportEmailAddrList, sentFromAddr):
     # should i have an def __init__ t- contruct the object?
-    def __init__(self, message, logs, errEmailAddrList, reportEmailAddrList,
-                 sentFromAddr, error):
+    def __init__(self, errEmailAddrList, reportEmailAddrList, sentFromAddr):
         #import email MIMEText to hold the unicode?  I guess
         import email.mime.multipart as parts
-        import email.mime.text as text
-        self.body = text.MIMEText(message, _charset='utf-8')
         self.emailParts = parts.MIMEMultipart()
         self.toErr = errEmailAddrList
         self.toReport = reportEmailAddrList
         self.from = sentFromAddr
-        self.message = message
-        self.logs = logs
-        self.error = error
 
-    def send_email(self)
+    def send_email(self, message, error)
         import smtplib
-        email = _create_email()
+        email = _create_email(message)
         SERVER = "localhost"
         server = smtplib.SMTP(SERVER)
-        if self.error:
+        if error:
             TO = self.toErr
         else:
             TO = self.toReport
@@ -32,8 +25,8 @@ class pgEmail(message, logs, errEmailAddrList, reportEmailAddrList, sentFromAddr
 
         """
         message is the concantinated text of the work performed by this script.
-        
-        logs are the stdout and stderr for the script, it the full system path
+                logs are the stdout and stderr for the script, it the full system path
+
          to the log file
         """ 
     def _create_email(self):
@@ -43,7 +36,9 @@ class pgEmail(message, logs, errEmailAddrList, reportEmailAddrList, sentFromAddr
         email['To'] = ','.join(e for e in TO)
         email['From'] = self.from
         email['Subject'] = "PeaceGeeks Server - Google Drive Report"
-        email.attach(self.body)
+        import email.mime.text as text
+        body = text.MIMEText(message, _charset='utf-8')
+        email.attach(body)
         # Attach log file to the email
         #attachFile = open(logs, 'r')
         attachFile = text.MIMEText(open(logs, 'r').read(), _charset='utf-8')
