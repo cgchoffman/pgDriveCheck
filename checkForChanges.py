@@ -163,7 +163,7 @@ def perform_check(configData, datebackuppath):
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
         import os.path, time
         message = "PeaceGeeks Google Drive auditor ran successfully:\n"
-        message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime("fileMetaData.json"))
+        message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime(archivedGDriveStateFilename))
         try:
             send_email(message, configData, 0)
             logger.info("\"No updates needed.\" email sent.")
