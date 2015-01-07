@@ -365,14 +365,16 @@ def send_email(message, configData, error):
     if error:
         #This needs to be able to change TO location
         TO = configData['TOERROR']
+        email['Subject'] = "ERROR OCCURRED - PANIC! - "
     else:
         #This needs to be able to change TO location
         TO = configData['TOREPORT']
+        email['Subject'] = "SUCCESS - "
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
     email['To'] = ','.join(e for e in TO)
     email['From'] = FROM = configData['FROM']
-    email['Subject'] = "PeaceGeeks Server - Google Drive Report"
+    email['Subject'] += "PeaceGeeks Server - Google Drive Report"
     
     body = text.MIMEText(message, _charset='utf-8')
     email.attach(body)
