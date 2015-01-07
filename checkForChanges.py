@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import getFiles
+import Drive_Checker
 
 import httplib2
 import logging
@@ -35,9 +36,10 @@ from oauth2client.tools import run
 from apiclient import errors
 
 # below is running at my home computer...so testing
-scripthome =  os.path.join(os.getenv('HOME'), "pgDriveCheck")
-#scripthome = os.path.join(os.getenv('HOME'), "Dropbox", "BackupSystem")
-loghome = os.path.join(scripthome, "PGbackups.log")
+
+#checker = Drive_Checker.DriverChecker()
+scripthome = os.getcwd()
+loghome = os.path.join(scripthome, "PGbackups.log") # Logs home
 home = os.getenv('USERPROFILE') or os.getenv('HOME')
 backuppath = os.path.join(home, "driveBackup")
 corepath = os.path.join(backuppath,"core")
@@ -133,8 +135,12 @@ def perform_check(configData, datebackuppath):
     
     try:
         # reload previous data from store JSON
-        archivedGDriveState = load_json_file(archivedGDriveStateFilename)
-        logger.info("Archived data retrieved.")
+        if archivedGDriveStateFilename == "":
+            logger.info("No archived file.  Create Full Backup.")
+        else:
+            archivedGDriveState = load_json_file(archivedGDriveStateFilename)
+            logger.info("Archived data retrieved.")  
+        
     except Exception as e:
         message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
         try:
@@ -262,7 +268,7 @@ def perform_check(configData, datebackuppath):
 def get_Share_Peace_Id(folderData):
     geekFolderIds = []
     for item in folderData:
-        if item['title'] == "Shared PeaceGeeks" or item['title'] == "PeaceGeeks Drive":
+        if item['title'] == "Shared PeaceGeeks" or item['title'] == "PeaceGeeks Drive" or item['title'] == "PeaceGeeks Drive3":
             geekFolderIds.append(item.get('id'))
             folderData.remove(item)
             break
@@ -280,7 +286,7 @@ def create_list_of_files(idSet, jsonState):
 # hierarchy.  When the list geekFolderIds stops growing then stop the loop.
 def get_all_pg_folder_ids(jsonState):
     ###
-    ###  THIS IS ALL GOING TO GET REPLACED BY Union-Find AS SUGGESTED BY Mark.
+    ###  THIS IS ALL GOING TO GET REPLACED BY Union-Find AS SUGGESTED BY MarkY.
     ###
     jsonStateCopy           = jsonState[:]
     geekFolderIds           = get_Share_Peace_Id(jsonStateCopy)
