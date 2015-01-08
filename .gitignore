@@ -38,5 +38,4 @@ PGbackups.log
 client_secrets.json
 config.json
 credentials.dat
-downloadAllFiles.py
 fileMeta.json
