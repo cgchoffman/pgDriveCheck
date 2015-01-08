@@ -1,18 +1,14 @@
 #!/usr/bin/python
-#
-# Copyright 2012 Google Inc. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# This file backsup a given google drive account based on a users crednetials.
+# It saves a state file so that later backups can don't download what doesn't
+# need downloading based on:
+#  - changed files
+#  - added files
+# It also emails a user with a report of what's been been:
+#  - changed
+#  - added
+#  - deleted
+# Deleted files are never removed from the backup
 
 import getFiles
 import Drive_Checker
