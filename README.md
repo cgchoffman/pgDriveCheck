@@ -27,5 +27,7 @@ This script loads those from a config.json file eg.
 You must authenticate yourself first and get a credentials.dat file...I don't remember 
 how I got that file right off the top of my head.  I'll try to remember to do that later ;)
 
+I do'nt even need to actually add this sentense...at all.
+
 
 
