@@ -66,7 +66,7 @@ def main():
         configData = None
         message = "Failed to load configuration data.  Exiting. %s" %e
         logger.error(message)
-        send_email(message, configData, 1)
+        send_email(message, configData, True)
         return
     try:
         # Check for args pass in when script was started or use default
@@ -94,7 +94,7 @@ def main():
             message = "perform_check failed: %s" %e
             logger.error(message)
             try:
-                send_email(message, configData, 0)
+                send_email(message, configData, True)
             except Exception as e:
                 message = "Failed to send \"No recovery backup files\" email. %s %s"
                 logger.error(message, "ERROR: ", e)
@@ -115,7 +115,7 @@ def main():
 def perform_check(configData, datebackuppath):
     # Retrieve current data from google drive
     try:
-        credentials = get_credentials(poop)#configData)
+        credentials = get_credentials(configData)
         print("Retrieved credentials config data successfully")
     except Exception as e:
         # the better way to do this is to 
@@ -176,7 +176,7 @@ def perform_check(configData, datebackuppath):
         message = "PeaceGeeks Google Drive auditor ran successfully:\n"
         message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime(archivedGDriveStateFilename))
         try:
-            send_email(message, configData, 0)
+            send_email(message, configData,  False)
             logger.info("\"No updates needed.\" email sent.")
         except Exception as e:
             message = "Failed to send \"No updates needed.\" email. %s %s"
