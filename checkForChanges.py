@@ -61,8 +61,10 @@ def main():
         logger.debug("configuration data loaded")
         print("configuration data loaded")
     except Exception as e:
-        print "There was an error loading the config file.\n  ERROR: %s" %e
-        logger.error("Failed to load configuration data.  Exiting. %s", e)
+        configData = None
+        message = "Failed to load configuration data.  Exiting. %s" %e
+        logger.error(message)
+        send_email(message, configData, 1)
         return
     try:
         # Check for args pass in when script was started or use default
@@ -193,10 +195,8 @@ def perform_check(configData, datebackuppath):
             # XXX This will be if added or if changed
             if GDriveObject['id'] in modfiedFileIDs or GDriveObject['id'] in addedFileIDs:
                 if GDriveObject['mimeType'].find('folder') == -1:
-                    dFile = {}
-                    if getFiles.get_download_url(GDriveObject) != None:
-                        dFile = getFiles.get_download_url(GDriveObject)
-                    else:
+                    dFile = getFiles.get_download_url(GDriveObject)
+                    if dFile == None:
                         dFile = getFiles.get_export_link(GDriveObject)
                     filename = ""
                     content = ""
@@ -357,20 +357,26 @@ def send_email(message, configData, error):
     import email.mime.multipart as parts
     email = parts.MIMEMultipart()
     
-    # Check if this is an email due to an error occurring.    
-    if error:
+    # Check if this is an email due to an error occurring.
+    # if configData is None that means the config couldn't be loaded
+    #  hardcode my email to me.
+    subject = ""
+    FROM = "security@peacegeeks.org"
+    if configData == None:
+        TO = ["cgchoffman@gmail.com"]
+    elif error:
         #This needs to be able to change TO location
         TO = configData['TOERROR']
-        email['Subject'] = "ERROR OCCURRED - PANIC! - "
+        subject = "ERROR OCCURRED - PANIC! - "
     else:
         #This needs to be able to change TO location
         TO = configData['TOREPORT']
-        email['Subject'] = "SUCCESS - "
+        subject = "SUCCESS - "
     # Convert the Unicode objects to UTF-8 encoding
     TO = [address.encode('utf-8') for address in TO]
     email['To'] = ','.join(e for e in TO)
-    email['From'] = FROM = configData['FROM']
-    email['Subject'] += "PeaceGeeks Server - Google Drive Report"
+    subject += "PeaceGeeks Server - Google Drive Report"
+    email['Subject'] = subject
     
     body = text.MIMEText(message, _charset='utf-8')
     email.attach(body)
