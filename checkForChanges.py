@@ -40,7 +40,9 @@ home = os.getenv('USERPROFILE') or os.getenv('HOME')
 backuppath = os.path.join(home, "driveBackup")
 corepath = os.path.join(backuppath,"core")
 date = datetime.now().strftime("%Y-%m-%d-%H-%M")
-datebackuppath = os.path.join(backuppath, date)
+datebackuppath = os.path.join(backuppath, date) # this path and core path should be cleansed
+                                                # if they ever take input from users as they
+                                                # are used for system calls later
 logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)s',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
@@ -85,34 +87,47 @@ def main():
     # Check for changes
     logger.debug("Performing first loop through check.")
     for repeatSafety in xrange(runLimit):
-        if perform_check(configData, datebackuppath) == 0:
-            # This means it ran successfully so we don't need to do ANOTHER
-            # backup
+        try:
+            perform_check(configData, datebackuppath)
             break
-        logger.warn("Failed check.  Peforming loop %s", str(repeatSafety))
-        repeatSafety += 1
-    else:
-        logger.info("Run limit hit.  Exiting.")
-        print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
-        send_email("Drive Backups failed.  Please review log file.", configData, True)
+        except Exception as e:
+            message = "perform_check failed: %s" %e
+            logger.error(message)
+            try:
+                send_email(message, configData, 0)
+            except Exception as e:
+                message = "Failed to send \"No recovery backup files\" email. %s %s"
+                logger.error(message, "ERROR: ", e)
+            repeatSafety += 1
+        #if perform_check(configData, datebackuppath) == 0:
+        #    # This means it ran successfully so we don't need to do ANOTHER
+        #    # backup
+        #    break
+        #logger.warn("Failed check.  Peforming loop %s", str(repeatSafety))
+        #repeatSafety += 1
+    #else:
+    #    logger.info("Run limit hit.  Exiting.")
+    #    print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
+    #    send_email("Drive Backups failed.  Please review log file.", configData, True)
     print ("We're all done here.  Make sure nothing went wrong in the logs.")
     logger.info("We're all done here.  Make sure nothing went wrong in the logs.")
 
 def perform_check(configData, datebackuppath):
     # Retrieve current data from google drive
     try:
-        credentials = get_credentials(configData)
+        credentials = get_credentials(poop)#configData)
         print("Retrieved credentials config data successfully")
     except Exception as e:
-        logger.error("Failed to retrieve Credentials.\nERROR: %s", e)
-        return 1
+        # the better way to do this is to 
+        message = "Failed to retrieve Credentials.\nERROR: %s" %e
+        raise Exception(message)
 
     try:
         service = get_service(credentials)
         print("Retrieved service from Google successfully")
     except Exception as e:
-        logger.error("Failed to retrieve Service.\n ERROR: %s", e)
-        return 1
+        message = "Failed to retrieve Service.\n ERROR: %s" %e
+        raise Exception(message)
 
     try:
         currentGDriveState = retrieve_all_meta(service)
@@ -125,9 +140,8 @@ def perform_check(configData, datebackuppath):
         message += """If they are all true and it's still failing, you might
                     need to dig more.\n"""
         message += "ERROR: %s" %e
-        logger.error(message)
-        send_email(message, configData, True)
-        return 1
+        raise Exception(message)
+    
     logger.info("Starting drive check.")
     # Check that the currentGDriveState was created
     
@@ -141,14 +155,7 @@ def perform_check(configData, datebackuppath):
         
     except Exception as e:
         message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
-        try:
-            send_email(message, configData, 0)
-            logger.error(message)
-        except Exception as e:
-            message = "Failed to send \"No recovery backup files\" email. %s %s"
-            logger.error(message, "ERROR: ", e)
-        finally:
-            return 1
+        raise Exception(message)
 
     # Creat list of folder ids for currentGDriveState and archivedGDriveState
     currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
@@ -203,8 +210,7 @@ def perform_check(configData, datebackuppath):
                     try:
                         content, filename = getFiles.download_file(service, dFile)
                     except Exception as e:
-                        pass # until you fix the RAISE sissue in getFiles
-                        #logger.error("%s: ERROR: %s", GDriveObject['title'], e)
+                        logger.error("%s: ERROR: %s", GDriveObject['title'], e)
                     # if this failed filename will be blank and an error was logged in logs
                     if filename != "":
                         try:
@@ -212,9 +218,7 @@ def perform_check(configData, datebackuppath):
                             succDnLds += 1
                             logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                         except Exception as e:
-                            pass #until you figure out why the raise doesn't work
-                            #raise in getfile.
-                            #logger.error("""Failed to write the file, %s: ERROR: %s""", filename, e)
+                            logger.error(e)
         downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
         #downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
         print(downloadsMessage)
@@ -232,8 +236,13 @@ def perform_check(configData, datebackuppath):
             rsync = "rsync -av %s/ %s" % (datebackuppath, corepath)
             s(rsync)
         except Exception as e:
-            message = "Failed to rsync folders.  Error: %s" %e
+            message = "Failed to rsync folders %s with %s.  Error: %s" %(corepath, datebackuppath, e)
             logger.error(message)
+            try:
+                send_email(message, configData, True)
+            except Exception as e:
+                message = "Failed to send Auditor report email.  Error: %s" %e
+                logger.error(message)
         try:
             remove = "rm -r %s" % datebackuppath
             s(remove)
@@ -248,15 +257,8 @@ def perform_check(configData, datebackuppath):
         #pass
         create_json_file_from_meta(currentGDriveState)
     except Exception as e:
-        print (e)
         message = "Could not create archive file of current state. Error: %s" %e
-        try:
-            send_email(message, configData, 0)
-            logger.error(message)
-        except Exception as e:
-            message = "Failed to send \"Could not create new archive\" email %s" % e
-            logger.error(message, "ERROR: ", e)
-        return 1
+        raise Exception(message)
     
     return 0
 

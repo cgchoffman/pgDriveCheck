@@ -35,10 +35,10 @@ def write_file(content, filename, datebackuppath):
         with open(filepath, 'wb') as dst:
             dst.write(content)
     except Exception as  e:
-        logger.warning("Could not write file %s.", fileJSON['title'])
-        logger.warning("Error: %s", e)
-        # This error does not RAISE out of getFiles.
-        #raise e
+        error = """Could not write file to disk: %s. 
+        Error: %s""" %(fileJSON['title'], e)
+        logger.warning(error)
+        raise Exception(error)
     
 
 
@@ -62,9 +62,7 @@ def download_file(service, download_url):
         return content, filename
     else:
         logger.warning("Could not download %s.", fileJSON['title'])
-        #This raise doesn't go ANYWHERE
-        #raise "File failed to download."
-        return None
+        raise Exception("File failed to download.")
 
 def get_download_url(fileJSON):
     """ Get the link that can download the file
