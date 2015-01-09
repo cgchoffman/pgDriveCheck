@@ -85,10 +85,19 @@ def get_export_link(file):
     print ext, fileName
     exportLinks = file.get('exportLinks')
     if exportLinks != None:
+        if ext == '':
+            try:
+                link = exportLinks.get('application/vnd.oasis.opendocument.text')
+                return link
+            except Exception as e:
+                logging.warn("No odt format for file %s.", fileName)
         for key in file['exportLinks']:
             if file['exportLinks'][key].find('=%s'%ext)>-1:
                 return file['exportLinks'][key]
         return file['exportLinks'].popitem()[1]
+    # If you've made it this far, something went wrong and you
+    # aren't going to download anything.
+    logging.warn("%s file was not downloaded.", fileName)
 
 def ensure_dir(path):
     """ Make sure the path exist that you're writing to
