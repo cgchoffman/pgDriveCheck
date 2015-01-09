@@ -9,6 +9,10 @@
 #  - added
 #  - deleted
 # Deleted files are never removed from the backup
+#
+# To start from scratch and do a full backup rename the savedState.json  file
+# and the script will do a full backup and create a new savedState.json file
+
 
 import getFiles
 import Drive_Checker
@@ -47,17 +51,22 @@ logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(mess
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
 #logger.setLevel("DEBUG")
-archivedGDriveStateFilename  = os.path.join(scripthome, "fileMeta.json")
+archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
+if not os.path.exists(archivedGDriveStateFilename):
+    archivedGDriveStateFilename = ""
+
+configFile      = "config.json"
+# XXX this should not be be using a hardcoded name
+# and should be a classmember
+configFile      = os.path.join(scripthome, configFile)
+
+# This should be a member
+configData = {}
+
 
 def main():
     logger.info("PeaceGeeks Google Drive auditor starting.")
-    configFile      = "config.json"
-    # XXX this should not be be using a hardcoded name
-    configFile      = os.path.join(scripthome, configFile)
-    defaultRunLimit = 3
-    repeatSafety    = 0
-    
-    
+    # This should be a member function
     try:
         configData = load_json_file(configFile)
         logger.debug("configuration data loaded")
@@ -68,6 +77,10 @@ def main():
         logger.error(message)
         send_email(message, configData, True)
         return
+    
+    defaultRunLimit = 1
+    repeatSafety    = 0
+    
     try:
         # Check for args pass in when script was started or use default
         runLimit = sys.argv[1]
@@ -142,13 +155,32 @@ def perform_check(configData, datebackuppath):
         message += "ERROR: %s" %e
         raise Exception(message)
     
+
+    
     logger.info("Starting drive check.")
     # Check that the currentGDriveState was created
+
+    # Creat list of folder ids for currentGDriveState and archivedGDriveState
+    currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
+    logger.debug("Current folder ID set retrieved.")
+    currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
+    logger.debug("Current file ID set retrieved.")
     
+        
+    archivedGDriveState={}
     try:
-        # reload previous data from store JSON
+        # if failed to load archived file, or I removed it
         if archivedGDriveStateFilename == "":
-            logger.info("No archived file.  Create Full Backup.")
+            logger.info("No archived file.  Performing full backup")
+            
+            try:
+                # Download all Files
+                retrieve_all_files(service, currentFileIDs, currentGDriveState, datebackuppath)
+                return 0
+            except Exception as e:
+                message = "Tried to perform full backup recovery but failed.  Fix it: %s" %e
+                raise Exception(message)
+
         else:
             archivedGDriveState = load_json_file(archivedGDriveStateFilename)
             logger.info("Archived data retrieved.")  
@@ -156,20 +188,74 @@ def perform_check(configData, datebackuppath):
     except Exception as e:
         message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
         raise Exception(message)
-
-    # Creat list of folder ids for currentGDriveState and archivedGDriveState
-    currentGDriveStateFolderIds  = get_all_pg_folder_ids(currentGDriveState)
-    logger.debug("Current folder ID set retrieved.")
+    
     archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
     logger.debug("Archived folder ID set retrieved.")
 
-    # Create sets out of the file IDs from archivedGDriveState and currentGDriveState that have
-    # ids in the currentGDriveStateFolderIds list and archivedGDriveStateFolderIds list
-    currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
-    logger.debug("Current file ID set retrieved.")
+    
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
     logger.debug("Archived file ID set retrieved.")
 
+    download_diff(archivedFileIDs, currentFileIDs)
+    
+    # don't create the json file yet or else you overwrite the check file.
+    # Create backup folder and create dated file names for recovery
+    try:
+        #pass
+        create_json_file_from_meta(currentGDriveState)
+    except Exception as e:
+        message = "Could not create archive file of current state. Error: %s" %e
+        raise Exception(message)
+    return 0
+
+def rsync_rm():
+    from os import system as s
+    try:
+        rsync = "rsync -av %s/ %s" % (datebackuppath, corepath)
+        s(rsync)
+    except Exception as e:
+        message = "Failed to rsync folders %s with %s.  Error: %s" %(corepath, datebackuppath, e)
+        logger.error(message)
+        try:
+            send_email(message, configData, True)
+        except Exception as e:
+            message = "Failed to send Auditor report email.  Error: %s" %e
+            logger.error(message)
+    try:
+        remove = "rm -r %s" % datebackuppath
+        s(remove)
+    except Exception as e:
+        message = "Failed to remove dated folder.  Error: %s" %e
+        logger.error(message)
+
+def retrieve_all_files(service, currentFileIDs, currentGDriveState, downloadpath):
+    
+    logging.info("****************Performing Full backup of drive.****************")
+    import getFiles
+    succDnLds = 0
+    for GDriveObject in currentGDriveState:
+        if GDriveObject['mimeType'].find('folder') == -1:
+            if GDriveObject['id'] in currentFileIDs:
+                dFile = getFiles.get_download_url(GDriveObject)
+                if dFile != None:
+                    try:
+                        content, filename = getFiles.download_file(service, dFile)
+                        getFiles.write_file(content, filename, downloadpath)
+                        succDnLds += 1
+                        logging.debug("Downloading %s of %s", succDnLds, len(currentFileIDs))
+                    except Exception as e:
+                        logging.error("""Failed to download or write the file.
+                                      \nERROR: %s""", e)
+    message = "%s of %s files have downloaded and saved"  %(succDnLds, len(currentFileIDs))
+    logging.info(message)
+    send_email(message, configData, False)
+    rsync_rm()
+
+# only download the files that have changed or been added to the drive
+# True for download done, False for no changes, nothing downloaded
+def download_diff(archivedFileIDs, currentFileIDs):
+    
+    logging.info("Performing Diff backup")
     # Must check both directions just incase one is empty
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
         import os.path, time
@@ -182,7 +268,7 @@ def perform_check(configData, datebackuppath):
             message = "Failed to send \"No updates needed.\" email. %s %s"
             logger.error(message, "ERROR: ", e)
 
-        print (message)
+        return False
 
     else:
         removedFileIDs = get_difference(archivedFileIDs, currentFileIDs)
@@ -219,9 +305,7 @@ def perform_check(configData, datebackuppath):
                             logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                         except Exception as e:
                             logger.error(e)
-        downloadsMessage =  ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
-        #downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, len(currentFileIDs))
-        print(downloadsMessage)
+        downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
         message = generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modfiedFileIDs)
         message += downloadsMessage
         try:
@@ -231,37 +315,9 @@ def perform_check(configData, datebackuppath):
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
             logger.error(message)
-        from os import system as s
-        try:
-            rsync = "rsync -av %s/ %s" % (datebackuppath, corepath)
-            s(rsync)
-        except Exception as e:
-            message = "Failed to rsync folders %s with %s.  Error: %s" %(corepath, datebackuppath, e)
-            logger.error(message)
-            try:
-                send_email(message, configData, True)
-            except Exception as e:
-                message = "Failed to send Auditor report email.  Error: %s" %e
-                logger.error(message)
-        try:
-            remove = "rm -r %s" % datebackuppath
-            s(remove)
-        except Exception as e:
-            message = "Failed to remove dated folder.  Error: %s" %e
-            logger.error(message)
-    
-    
-    # don't create the json file yet or else you overwrite the check file.
-    # Create backup folder and create dated file names for recovery
-    try:
-        #pass
-        create_json_file_from_meta(currentGDriveState)
-    except Exception as e:
-        message = "Could not create archive file of current state. Error: %s" %e
-        raise Exception(message)
-    
-    return 0
-
+        rsync_rm()
+        return True
+        
 #initially get the ID of Share PeaceGeeks folder
 def get_Share_Peace_Id(folderData):
     geekFolderIds = []
@@ -494,6 +550,7 @@ def retrieve_all_meta(service):
     return result
 
 def create_json_file_from_meta(stateJSON):
+    archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
     try:
         filename = archivedGDriveStateFilename
         with open(filename, 'w') as dst:
