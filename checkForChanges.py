@@ -67,6 +67,7 @@ configData = {}
 def main():
     logger.info("PeaceGeeks Google Drive auditor starting.")
     # This should be a member function
+    global configData
     try:
         configData = load_json_file(configFile)
         logger.debug("configuration data loaded")
@@ -167,7 +168,7 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current file ID set retrieved.")
     
         
-    archivedGDriveState={}
+    #archivedGDriveState={}
     try:
         # if failed to load archived file, or I removed it
         if archivedGDriveStateFilename == "":
@@ -233,23 +234,23 @@ def retrieve_all_files(service, currentFileIDs, currentGDriveState, downloadpath
     logging.info("****************Performing Full backup of drive.****************")
     import getFiles
     succDnLds = 0
-    for GDriveObject in currentGDriveState:
-        if GDriveObject['mimeType'].find('folder') == -1:
-            if GDriveObject['id'] in currentFileIDs:
-                dFile = getFiles.get_download_url(GDriveObject)
-                if dFile != None:
-                    try:
-                        content, filename = getFiles.download_file(service, dFile)
-                        getFiles.write_file(content, filename, downloadpath)
-                        succDnLds += 1
-                        logging.debug("Downloading %s of %s", succDnLds, len(currentFileIDs))
-                    except Exception as e:
-                        logging.error("""Failed to download or write the file.
-                                      \nERROR: %s""", e)
+    #for GDriveObject in currentGDriveState:
+    #    if GDriveObject['mimeType'].find('folder') == -1:
+    #        if GDriveObject['id'] in currentFileIDs:
+    #            dFile = getFiles.get_download_url(GDriveObject)
+    #            if dFile != None:
+    #                try:
+    #                    content, filename = getFiles.download_file(service, dFile)
+    #                    getFiles.write_file(content, filename, downloadpath)
+    #                    succDnLds += 1
+    #                    logging.debug("Downloading %s of %s", succDnLds, len(currentFileIDs))
+    #                except Exception as e:
+    #                    logging.error("""Failed to download or write the file.
+    #                                  \nERROR: %s""", e)
+    #rsync_rm()
     message = "%s of %s files have downloaded and saved"  %(succDnLds, len(currentFileIDs))
     logging.info(message)
     send_email(message, configData, False)
-    rsync_rm()
 
 # only download the files that have changed or been added to the drive
 # True for download done, False for no changes, nothing downloaded
@@ -305,6 +306,7 @@ def download_diff(archivedFileIDs, currentFileIDs):
                             logger.debug("Downloaded and saved %s of %s. Retrieved: %s", succDnLds, len(currentFileIDs), filename)
                         except Exception as e:
                             logger.error(e)
+        rsync_rm()
         downloadsMessage = ("%s of %s files have downloaded and saved") %(succDnLds, (len(addedFileIDs) + len(modfiedFileIDs)))
         message = generate_added_removed_modifed_message(removedFileIDs, addedFileIDs, archivedGDriveState, currentGDriveState, modfiedFileIDs)
         message += downloadsMessage
@@ -315,7 +317,6 @@ def download_diff(archivedFileIDs, currentFileIDs):
         except Exception as e:
             message = "Failed to send Auditor report email.  Error: %s" %e
             logger.error(message)
-        rsync_rm()
         return True
         
 #initially get the ID of Share PeaceGeeks folder
