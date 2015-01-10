@@ -113,6 +113,9 @@ def main():
                 message = "Failed to send \"No recovery backup files\" email. %s %s"
                 logger.error(message, "ERROR: ", e)
             repeatSafety += 1
+            
+            
+        # clean this up with a big clean up commit of white space and comments    
         #if perform_check(configData, datebackuppath) == 0:
         #    # This means it ran successfully so we don't need to do ANOTHER
         #    # backup
@@ -177,6 +180,12 @@ def perform_check(configData, datebackuppath):
             try:
                 # Download all Files
                 retrieve_all_files(service, currentFileIDs, currentGDriveState, datebackuppath)
+                # Create backup folder and create dated file names for recovery
+                try:
+                    create_json_file_from_meta(currentGDriveState)
+                except Exception as e:
+                    message = "Could not create archive file of current state. Error: %s" %e
+                    raise Exception(message)
                 return 0
             except Exception as e:
                 message = "Tried to perform full backup recovery but failed.  Fix it: %s" %e
@@ -192,23 +201,22 @@ def perform_check(configData, datebackuppath):
     
     archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
     logger.debug("Archived folder ID set retrieved.")
-
-    
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
     logger.debug("Archived file ID set retrieved.")
 
     download_diff(archivedFileIDs, currentFileIDs)
     
-    # don't create the json file yet or else you overwrite the check file.
     # Create backup folder and create dated file names for recovery
     try:
-        #pass
         create_json_file_from_meta(currentGDriveState)
     except Exception as e:
         message = "Could not create archive file of current state. Error: %s" %e
         raise Exception(message)
     return 0
 
+# rsync the dated folder with the core folder
+# This was the easiest way to write a file to folder that would already have
+# said folder in it.
 def rsync_rm():
     from os import system as s
     try:
