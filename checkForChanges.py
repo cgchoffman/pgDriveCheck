@@ -171,7 +171,6 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current file ID set retrieved.")
     
         
-    #archivedGDriveState={}
     try:
         # if failed to load archived file, or I removed it
         if archivedGDriveStateFilename == "":
@@ -204,7 +203,7 @@ def perform_check(configData, datebackuppath):
     archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
     logger.debug("Archived file ID set retrieved.")
 
-    download_diff(archivedFileIDs, currentFileIDs)
+    download_diff(archivedFileIDs, currentFileIDs, archivedGDriveState, currentGDriveState, archivedGDriveStateFolderIds, currentGDriveStateFolderIds)
     
     # Create backup folder and create dated file names for recovery
     try:
@@ -242,27 +241,28 @@ def retrieve_all_files(service, currentFileIDs, currentGDriveState, downloadpath
     logging.info("****************Performing Full backup of drive.****************")
     import getFiles
     succDnLds = 0
-    #for GDriveObject in currentGDriveState:
-    #    if GDriveObject['mimeType'].find('folder') == -1:
-    #        if GDriveObject['id'] in currentFileIDs:
-    #            dFile = getFiles.get_download_url(GDriveObject)
-    #            if dFile != None:
-    #                try:
-    #                    content, filename = getFiles.download_file(service, dFile)
-    #                    getFiles.write_file(content, filename, downloadpath)
-    #                    succDnLds += 1
-    #                    logging.debug("Downloading %s of %s", succDnLds, len(currentFileIDs))
-    #                except Exception as e:
-    #                    logging.error("""Failed to download or write the file.
-    #                                  \nERROR: %s""", e)
-    #rsync_rm()
+    for GDriveObject in currentGDriveState:
+       if GDriveObject['mimeType'].find('folder') == -1:
+           if GDriveObject['id'] in currentFileIDs:
+               dFile = getFiles.get_download_url(GDriveObject)
+               if dFile != None:
+                   try:
+                       content, filename = getFiles.download_file(service, dFile)
+                       getFiles.write_file(content, filename, downloadpath)
+                       succDnLds += 1
+                       logging.debug("Downloading %s of %s", succDnLds, len(currentFileIDs))
+                   except Exception as e:
+                       logging.error("""Failed to download or write the file.
+                                     \nERROR: %s""", e)
+    rsync_rm()
     message = "%s of %s files have downloaded and saved"  %(succDnLds, len(currentFileIDs))
     logging.info(message)
     send_email(message, configData, False)
 
 # only download the files that have changed or been added to the drive
 # True for download done, False for no changes, nothing downloaded
-def download_diff(archivedFileIDs, currentFileIDs):
+# This is BS.  I gotta get on making this into a class!
+def download_diff(archivedFileIDs, currentFileIDs, archivedGDriveState, currentGDriveState, archivedGDriveStateFolderIds, currentGDriveStateFolderIds):
     
     logging.info("Performing Diff backup")
     # Must check both directions just incase one is empty
