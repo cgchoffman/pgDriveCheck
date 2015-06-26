@@ -1,6 +1,6 @@
 #!/usr/bin/python
-# This file backsup a given google drive account based on a users crednetials.
-# It saves a state file so that later backups can don't download what doesn't
+# This file backsup a given google drive account based on a users credentials.
+# It saves a state file so that later backups won't download what doesn't
 # need downloading based on:
 #  - changed files
 #  - added files
@@ -35,7 +35,6 @@ from oauth2client.client import OAuth2WebServerFlow
 from oauth2client.tools import run
 from apiclient import errors
 
-# below is running at my home computer...so testing
 
 #checker = Drive_Checker.DriverChecker()
 scripthome = os.getcwd()
@@ -50,7 +49,7 @@ datebackuppath = os.path.join(backuppath, date) # this path and core path should
 logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(message)s\n\t%(exc_info)s',
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
-#logger.setLevel("DEBUG")
+logger.setLevel("DEBUG")
 archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
 if not os.path.exists(archivedGDriveStateFilename):
     archivedGDriveStateFilename = ""
@@ -60,7 +59,7 @@ configFile      = "config.json"
 # and should be a classmember
 configFile      = os.path.join(scripthome, configFile)
 
-# This should be a member
+# This should be a member...you should be a member :P
 configData = {}
 
 
@@ -114,18 +113,6 @@ def main():
                 logger.error(message, "ERROR: ", e)
             repeatSafety += 1
             
-            
-        # clean this up with a big clean up commit of white space and comments    
-        #if perform_check(configData, datebackuppath) == 0:
-        #    # This means it ran successfully so we don't need to do ANOTHER
-        #    # backup
-        #    break
-        #logger.warn("Failed check.  Peforming loop %s", str(repeatSafety))
-        #repeatSafety += 1
-    #else:
-    #    logger.info("Run limit hit.  Exiting.")
-    #    print ("Exceeded max runlimit of %s.  Ending script.") %runLimit
-    #    send_email("Drive Backups failed.  Please review log file.", configData, True)
     print ("We're all done here.  Make sure nothing went wrong in the logs.")
     logger.info("We're all done here.  Make sure nothing went wrong in the logs.")
 
@@ -159,8 +146,6 @@ def perform_check(configData, datebackuppath):
         message += "ERROR: %s" %e
         raise Exception(message)
     
-
-    
     logger.info("Starting drive check.")
     # Check that the currentGDriveState was created
 
@@ -169,7 +154,6 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current folder ID set retrieved.")
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
     logger.debug("Current file ID set retrieved.")
-    
         
     try:
         # if failed to load archived file, or I removed it
@@ -455,7 +439,6 @@ def send_email(message, configData, error):
     attachFile.add_header('Content-Disposition', 'attachment', filename=fname)           
     email.attach(attachFile)
     
-    
     SERVER = "localhost"
     server = smtplib.SMTP(SERVER)
     server.sendmail(FROM, TO, email.as_string())
@@ -519,7 +502,7 @@ def get_service(credentials):
         logger.debug("Service retrieved successfully from Google.")
     except httplib2.ServerNotFoundError, httpError:
         # XXX this raise doesnt work at all
-        raise ("An error occurred attempting to connect to your Google Drive. \n",
+        raise Exception("An error occurred attempting to connect to your Google Drive. \n",
         "Check that you are conntected to the internet.", httpError)
     return service
 
@@ -551,10 +534,10 @@ def retrieve_all_meta(service):
                 if not page_token:
                     break
             except errors.HttpError, error:
-                raise 'An error occurred: %s' %error
+                raise Exception('An error occurred: %s' %error)
                 break
     else:
-        raise "Service is None"
+        raise Exception("Service is None")
     logger.debug("Archived drive state loaded successfully.")
     return result
 
