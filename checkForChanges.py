@@ -37,6 +37,7 @@ from apiclient import errors
 
 
 #checker = Drive_Checker.DriverChecker()
+serviceLoops = 0
 scripthome = os.getcwd()
 loghome = os.path.join(scripthome, "PGbackups.log") # Logs home
 home = os.getenv('USERPROFILE') or os.getenv('HOME')
@@ -506,7 +507,7 @@ def get_service(credentials):
         "Check that you are conntected to the internet.", httpError)
     return service
 
-def retrieve_all_meta(service):
+def retrieve_all_meta(service, page_token = None, result = []):
     """Retrieve a list of File resources.
 
     Args:
@@ -520,8 +521,6 @@ def retrieve_all_meta(service):
     exist most of the time in the format I currently have.
     """
     if service:
-        result = []
-        page_token = None
         while True:
             try:
                 param = {}
@@ -534,7 +533,10 @@ def retrieve_all_meta(service):
                 if not page_token:
                     break
             except errors.HttpError, error:
-                raise Exception('An error occurred: %s' %error)
+                logger.exception('An error occurred: %s' %error)
+                if serviceLoops <= 5:
+                    retrieve_all_meta(service, page_token, result)
+                    serviceLoops += 1
                 break
     else:
         raise Exception("Service is None")
