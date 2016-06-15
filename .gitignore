@@ -39,3 +39,6 @@ client_secrets.json
 config.json
 credentials.dat
 fileMeta.json
+configData.json
+savedState.json
+
