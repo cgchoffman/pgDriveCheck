@@ -54,6 +54,7 @@ logger.setLevel("DEBUG")
 archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
 if not os.path.exists(archivedGDriveStateFilename):
     archivedGDriveStateFilename = ""
+logger.info("archive File Path is: %s", archivedGDriveStateFilename)
 
 configFile      = "config.json"
 # XXX this should not be be using a hardcoded name
@@ -157,42 +158,30 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current file ID set retrieved.")
         
     try:
-        # if failed to load archived file, or I removed it
-        if archivedGDriveStateFilename == "":
-            logger.info("No archived file.  Performing full backup")
-            
-            try:
-                # Download all Files
-                retrieve_all_files(service, currentFileIDs, currentGDriveState, datebackuppath)
-                # Create backup folder and create dated file names for recovery
-                try:
-                    create_json_file_from_meta(currentGDriveState)
-                except Exception as e:
-                    message = "Could not create archive file of current state. Error: %s" %e
-                    raise Exception(message)
-                return 0
-            except Exception as e:
-                message = "Tried to perform full backup recovery but failed.  Fix it: %s" %e
-                raise Exception(message)
-
-        else:
-            archivedGDriveState = load_json_file(archivedGDriveStateFilename)
-            logger.info("Archived data retrieved.")  
-        
+        archivedGDriveState = load_json_file(archivedGDriveStateFilename)
     except Exception as e:
         message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
-        raise Exception(message)
-    
-    archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
-    logger.debug("Archived folder ID set retrieved.")
-    archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
-    logger.debug("Archived file ID set retrieved.")
-
-    download_diff(service, archivedFileIDs, currentFileIDs, archivedGDriveState, currentGDriveState, archivedGDriveStateFolderIds, currentGDriveStateFolderIds)
-    
+        message += "Attempting full backup"
+        logger.error(message)
+        try:
+            # Download all Files
+            retrieve_all_files(service, currentFileIDs, currentGDriveState, datebackuppath)
+            # Create backup folder and create dated file names for recovery
+        except Exception as e:
+            message = "Tried to perform full backup recovery but failed.  Fix it: %s" %e
+            raise RuntimeError(message)
+    # if the above was successful then carry on with regular diff backup
+    if archivedGDriveState:
+        logger.info("Archived data retrieved.")
+        archivedGDriveStateFolderIds = get_all_pg_folder_ids(archivedGDriveState)
+        logger.debug("Archived folder ID set retrieved.")
+        archivedFileIDs = get_file_id_set(archivedGDriveState, archivedGDriveStateFolderIds)
+        logger.debug("Archived file ID set retrieved.")
+        download_diff(service, archivedFileIDs, currentFileIDs, archivedGDriveState, currentGDriveState, archivedGDriveStateFolderIds, currentGDriveStateFolderIds)
+        
     # Create backup folder and create dated file names for recovery
     try:
-        create_json_file_from_meta(currentGDriveState)
+        archiveGDriveState(currentGDriveState)
     except Exception as e:
         message = "Could not create archive file of current state. Error: %s" %e
         raise Exception(message)
@@ -543,11 +532,9 @@ def retrieve_all_meta(service, page_token = None, result = []):
     logger.debug("Archived drive state loaded successfully.")
     return result
 
-def create_json_file_from_meta(stateJSON):
-    archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
+def archiveGDriveState(stateJSON):
     try:
-        filename = archivedGDriveStateFilename
-        with open(filename, 'w') as dst:
+        with open(archivedGDriveStateFilename, 'w') as dst:
             json.dump(stateJSON, dst)
             dst.close()
         print ("Archived PG Drive created.  Thanks!")
