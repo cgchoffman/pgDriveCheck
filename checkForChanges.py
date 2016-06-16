@@ -42,6 +42,7 @@ scripthome = os.getcwd()
 loghome = os.path.join(scripthome, "PGbackups.log") # Logs home
 home = os.getenv('USERPROFILE') or os.getenv('HOME')
 backuppath = os.path.join(home, "driveBackup")
+archivebackuppath = os.path.join(scripthome, "drive_archive_backup")
 corepath = os.path.join(backuppath,"core")
 date = datetime.now().strftime("%Y-%m-%d-%H-%M")
 datebackuppath = os.path.join(backuppath, date) # this path and core path should be cleansed
@@ -51,10 +52,11 @@ logging.basicConfig(format='%(levelname)s:[%(asctime)-15s]: %(funcName)s: %(mess
                     filemode='w', filename=loghome, level=logging.INFO)
 logger = logging.getLogger('PG-Backup')
 logger.setLevel("DEBUG")
-archivedGDriveStateFilename = os.path.join(scripthome, "savedState.json")
-if not os.path.exists(archivedGDriveStateFilename):
-    archivedGDriveStateFilename = ""
-logger.info("archive File Path is: %s", archivedGDriveStateFilename)
+archiveFilename = "savedState.json"
+archivedGDriveStateFilenamePath = os.path.join(scripthome, arvhiceFilename)
+if not os.path.exists(archivedGDriveStateFilenamePath):
+    archivedGDriveStateFilenamePath = ""
+logger.info("archive File Path is: %s", archivedGDriveStateFilenamePath)
 
 configFile      = "config.json"
 # XXX this should not be be using a hardcoded name
@@ -156,11 +158,17 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current folder ID set retrieved.")
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
     logger.debug("Current file ID set retrieved.")
-        
+    archivedGDriveState=""
     try:
-        archivedGDriveState = load_json_file(archivedGDriveStateFilename)
+        archivedGDriveState = load_json_file(archivedGDriveStateFilenamePath)
     except Exception as e:
-        message = "Could not load archived meta data. Recover a backup. ERROR: %s" %e
+        message = "Could not load archived meta data. Recovering a backup. ERROR: %s" %e
+        logger.error(message)
+        try:
+            archivedGDriveState = load_json_file(os.path.join())
+
+        
+        message = "Could not load backup archived meta data. ERROR: %s" %e
         message += "Attempting full backup"
         logger.error(message)
         try:
@@ -243,7 +251,7 @@ def download_diff(service, archivedFileIDs, currentFileIDs, archivedGDriveState,
     if len(currentFileIDs.difference(archivedFileIDs)) == 0 and len(archivedFileIDs.difference(currentFileIDs)) == 0:
         import os.path, time
         message = "PeaceGeeks Google Drive auditor ran successfully:\n"
-        message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime(archivedGDriveStateFilename))
+        message += "There have been no changes to you Google Drive since %s" % time.ctime(os.path.getmtime(archivedGDriveStateFilenamePath))
         try:
             send_email(message, configData,  False)
             logger.info("\"No updates needed.\" email sent.")
@@ -534,7 +542,12 @@ def retrieve_all_meta(service, page_token = None, result = []):
 
 def archiveGDriveState(stateJSON):
     try:
-        with open(archivedGDriveStateFilename, 'w') as dst:
+        with open(archivedGDriveStateFilenamePath, 'w') as dst:
+            json.dump(stateJSON, dst)
+            dst.close()
+        #back up archive just in case
+        newBackupDir = findLatestArchiveBackupDir() + 1
+        with open(os.path.join(archivebackuppath, newBackupDir, archiveFilename)):
             json.dump(stateJSON, dst)
             dst.close()
         print ("Archived PG Drive created.  Thanks!")
@@ -543,6 +556,17 @@ def archiveGDriveState(stateJSON):
         raise
     except:
         raise
+
+def findLatestArchiveBackupDir():
+    # archived files are stored in numbers folders cause i'm lazy and that
+    # makes things easier to parse.  If you want dates, look at the created date
+    # or go on POF
+    latest = 0
+    directories = next(os.walk(archivebackuppath))[1]
+    for directory in directories:
+        if directory > latest:
+            latest = directory
+    return latest
 
 def getModifiedFiles(reformatCurrent, reformatArchive):
     modifiedFiles = set([])
