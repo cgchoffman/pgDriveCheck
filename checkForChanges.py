@@ -165,9 +165,8 @@ def perform_check(configData, datebackuppath):
         message = "Could not load archived meta data. Recovering a backup. ERROR: %s" %e
         logger.error(message)
         try:
-            archivedGDriveState = load_json_file(os.path.join())
-
-        
+            archivedGDriveState = load_json_file(os.path.join(archivebackuppath,
+                                                              findLatestArchiveBackupDir(),))
         message = "Could not load backup archived meta data. ERROR: %s" %e
         message += "Attempting full backup"
         logger.error(message)
