@@ -156,7 +156,7 @@ def perform_check(configData, datebackuppath):
     logger.debug("Current folder ID set retrieved.")
     currentFileIDs = get_file_id_set(currentGDriveState, currentGDriveStateFolderIds)
     logger.debug("Current file ID set retrieved.")
-        
+    archivedGDriveState = None
     try:
         archivedGDriveState = load_json_file(archivedGDriveStateFilename)
     except Exception as e:
