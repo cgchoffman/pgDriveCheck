@@ -9,7 +9,7 @@
 #  - added
 #  - deleted
 # Deleted files are never removed from the backup
-#
+# Testing something.  I'm going to delete the commit that this is in.
 # To start from scratch and do a full backup rename the savedState.json  file
 # and the script will do a full backup and create a new savedState.json file
 
